@@ -1,0 +1,24 @@
+{
+  "name": "tamarind-world",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "masks:generate": "python scripts/create_initial_masks.py",
+    "masks:validate": "python scripts/validate_masks.py",
+    "masks:normalize": "python scripts/normalize_masks.py",
+    "depth:build": "python scripts/build_depth_map.py",
+    "geometry:build": "python scripts/build_spatial_volumes.py",
+    "cleanplate:technomage": "python scripts/build_technomage_clean_plate.py",
+    "cutout:technomage": "python scripts/export_technomage_cutout.py"
+  },
+  "dependencies": {
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "vite": "^7.1.7"
+  }
+}

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#09152f" />
+    <title>Teste de clean plate | Tamarind</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: #111a2a;
+        color: #eee7dc;
+        font: 14px/1.45 system-ui, sans-serif;
+      }
+      main { width: min(1120px, 100%); margin: 0 auto; padding: 22px 16px 48px; }
+      h1 { margin: 0 0 5px; font-size: 22px; font-weight: 650; }
+      .intro { margin: 0 0 22px; color: #b8c3ce; }
+      section { margin: 0 0 24px; }
+      h2 { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
+      .frame {
+        overflow: hidden;
+        border: 1px solid #384353;
+        background: #080e19;
+      }
+      img, canvas { display: block; width: 100%; height: auto; }
+      .comparison {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .comparison figure { margin: 0; min-width: 0; }
+      figcaption { margin: 0 0 6px; color: #c5ced7; font-size: 12px; }
+      #status { color: #f0c47c; }
+      @media (max-width: 620px) {
+        main { padding: 16px 10px 32px; }
+        .comparison { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Clean plate: Tecnomago</h1>
+      <p class="intro">Teste manual por clonagem de pixels da própria ilustração. <span id="status">Carregando…</span></p>
+      <section>
+        <h2>1. Imagem original</h2>
+        <div class="frame"><img src="/artwork/source/layoutTamarind.png" alt="Imagem original sem alterações" /></div>
+      </section>
+      <section>
+        <h2>2. Máscara do Tecnomago</h2>
+        <div class="frame"><img src="/artwork/masks/technomage.png" alt="Máscara em escala de cinza do Tecnomago" /></div>
+      </section>
+      <section>
+        <h2>3. Clean plate sem o Tecnomago</h2>
+        <div class="frame"><img src="/artwork/cleanplates/tecnomago-clean.png" alt="Clean plate de teste" /></div>
+      </section>
+      <section>
+        <h2>4. Clean plate + Tecnomago 2.5D</h2>
+        <div class="frame"><canvas id="clean-composite" width="1672" height="941" aria-label="Clean plate com Tecnomago recortado"></canvas></div>
+      </section>
+      <section>
+        <h2>5. Comparação com a cena atual</h2>
+        <div class="comparison">
+          <figure>
+            <figcaption>Cena atual: arte original + recorte deslocado 14 px</figcaption>
+            <div class="frame"><canvas id="current-composite" width="1672" height="941"></canvas></div>
+          </figure>
+          <figure>
+            <figcaption>Teste: clean plate + mesmo recorte deslocado</figcaption>
+            <div class="frame"><canvas id="clean-shifted" width="1672" height="941"></canvas></div>
+          </figure>
+        </div>
+      </section>
+    </main>
+    <script type="module">
+      const artworkUrl = '/artwork/source/layoutTamarind.png';
+      const maskUrl = '/artwork/masks/technomage.png';
+      const plateUrl = '/artwork/cleanplates/tecnomago-clean.png';
+      const loadImage = (url) => new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error(`Falha ao carregar ${url}`));
+        image.src = url;
+      });
+
+      try {
+        const [artwork, mask, plate] = await Promise.all([
+          loadImage(artworkUrl), loadImage(maskUrl), loadImage(plateUrl),
+        ]);
+        const maskCanvas = document.createElement('canvas');
+        maskCanvas.width = artwork.naturalWidth;
+        maskCanvas.height = artwork.naturalHeight;
+        const maskContext = maskCanvas.getContext('2d', { willReadFrequently: true });
+        maskContext.drawImage(mask, 0, 0, maskCanvas.width, maskCanvas.height);
+        const maskPixels = maskContext.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+        const alphaCanvas = document.createElement('canvas');
+        alphaCanvas.width = artwork.naturalWidth;
+        alphaCanvas.height = artwork.naturalHeight;
+        const alphaContext = alphaCanvas.getContext('2d');
+        alphaContext.drawImage(artwork, 0, 0);
+        const cutout = alphaContext.getImageData(0, 0, alphaCanvas.width, alphaCanvas.height);
+        for (let index = 0; index < cutout.data.length; index += 4) {
+          cutout.data[index + 3] = maskPixels.data[index];
+        }
+        alphaContext.putImageData(cutout, 0, 0);
+
+        const drawComposite = (id, base, offsetX) => {
+          const canvas = document.querySelector(`#${id}`);
+          const context = canvas.getContext('2d');
+          context.drawImage(base, 0, 0);
+          context.drawImage(alphaCanvas, offsetX, 0);
+        };
+        drawComposite('clean-composite', plate, 0);
+        drawComposite('current-composite', artwork, 14);
+        drawComposite('clean-shifted', plate, 14);
+        document.querySelector('#status').textContent = '5 visualizações prontas.';
+      } catch (error) {
+        document.querySelector('#status').textContent = error.message;
+        document.querySelector('#status').style.color = '#ff9c8b';
+        console.error(error);
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#131922" />
+    <title>Preparar máscaras | Tamarind</title>
+  </head>
+  <body>
+    <main class="studio">
+      <header class="toolbar">
+        <div class="brand">
+          <a href="/" aria-label="Voltar à cena Tamarind">T</a>
+          <div>
+            <strong>Máscaras</strong>
+            <span id="selection-name">Carregando camadas...</span>
+          </div>
+        </div>
+        <label class="layer-picker">
+          <span>Elemento</span>
+          <select id="layer-select" disabled></select>
+        </label>
+        <div class="segmented" role="group" aria-label="Ferramenta de pintura">
+          <button type="button" data-tool="paint" class="active" title="Pintar máscara">Pincel</button>
+          <button type="button" data-tool="erase" title="Apagar máscara">Apagar</button>
+        </div>
+        <label class="range-control">
+          <span>Pincel <output id="brush-value">24 px</output></span>
+          <input id="brush-size" type="range" min="1" max="120" value="24" />
+        </label>
+        <label class="range-control zoom-control">
+          <span>Zoom <output id="zoom-value">100%</output></span>
+          <input id="zoom" type="range" min="50" max="500" value="100" />
+        </label>
+        <div class="segmented view-modes" role="group" aria-label="Modo de visualização">
+          <button type="button" data-view="original">ORIGINAL</button>
+          <button type="button" data-view="mask">MÁSCARA</button>
+          <button type="button" data-view="overlay" class="active">OVERLAY</button>
+          <button type="button" data-view="all">TODAS</button>
+        </div>
+        <div class="actions">
+          <button id="undo" type="button" class="icon-button" title="Desfazer traço" aria-label="Desfazer traço" disabled>↶</button>
+          <button id="clear" type="button" class="text-button">Limpar</button>
+          <label class="text-button file-button">Importar<input id="import-mask" type="file" accept="image/png" /></label>
+          <button id="export" type="button" class="primary-button" disabled>Exportar PNG</button>
+        </div>
+      </header>
+      <section class="work-area">
+        <div id="viewport" class="viewport">
+          <canvas id="art-canvas" width="1680" height="945" aria-label="Arte original com prévia da máscara selecionada"></canvas>
+          <div id="loading" class="loading">Carregando a imagem original...</div>
+        </div>
+        <footer class="statusbar">
+          <span id="mask-state">A máscara selecionada está vazia.</span>
+          <span>Original: somente leitura</span>
+          <span id="source-dimensions">Lendo dimensões...</span>
+        </footer>
+      </section>
+    </main>
+    <script type="module" src="/tools/mask-studio.js"></script>
+  </body>
+</html>

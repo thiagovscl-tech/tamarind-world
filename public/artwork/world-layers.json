@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "source": "/artwork/source/layoutTamarind.png",
+  "canvas": {
+    "width": 1672,
+    "height": 941,
+    "aspect": 1.7778969182
+  },
+  "referencePlaneZ": 0,
+  "depthEncoding": {
+    "file": "/artwork/depth/scene-depth-16.png",
+    "bits": 16,
+    "zMin": -6,
+    "zMax": 0.8,
+    "nearIsBrighter": true,
+    "overlapRule": "nearest-z-wins"
+  },
+  "cleanPlate": {
+    "file": "/artwork/plates/clean-base.png",
+    "status": "not-started",
+    "note": "Derived manually from source pixels after masks are reviewed; never overwrite the source."
+  },
+  "layers": [
+    { "id": "sky", "label": "Céu", "category": "sky", "rect": [0, 0, 1, 0.55], "z": -5.6, "representation": "textured-plane", "status": "draft-review" },
+    { "id": "sun", "label": "Sol", "category": "sky", "rect": [0.65, 0.1, 0.35, 0.35], "z": -5.1, "representation": "textured-plane", "status": "draft-review" },
+    { "id": "far-mountains", "label": "Montanhas distantes", "category": "farWorld", "rect": [0, 0.2, 1, 0.33], "z": -4.2, "representation": "shallow-displaced-mesh", "status": "draft-review" },
+    { "id": "mid-mountains", "label": "Montanhas intermediárias", "category": "midWorld", "rect": [0, 0.28, 1, 0.42], "z": -3.15, "representation": "terrain-mesh", "status": "draft-review" },
+    { "id": "castle", "label": "Castelo", "category": "midWorld", "rect": [0.42, 0.1, 0.3, 0.34], "z": -2.7, "representation": "low-poly-architecture", "status": "draft-review" },
+    { "id": "waterfalls", "label": "Cachoeiras", "category": "midWorld", "rect": [0.55, 0.38, 0.45, 0.39], "z": -2.1, "representation": "textured-ribbons", "status": "draft-review" },
+    { "id": "bridge", "label": "Ponte", "category": "midWorld", "rect": [0.49, 0.39, 0.45, 0.37], "z": -1.2, "representation": "low-poly-arches", "status": "draft-review" },
+    { "id": "technomage", "label": "Tecnomago", "category": "characters", "rect": [0.02, 0.39, 0.17, 0.36], "z": 0.05, "representation": "cutout-planes", "status": "draft-review" },
+    { "id": "guardian", "label": "Guardiã", "category": "characters", "rect": [0.19, 0.34, 0.12, 0.42], "z": 0.12, "representation": "cutout-planes", "status": "draft-review" },
+    { "id": "explorer", "label": "Explorador", "category": "characters", "rect": [0.28, 0.35, 0.17, 0.42], "z": 0.2, "representation": "cutout-planes", "status": "draft-review" },
+    { "id": "bear", "label": "Urso", "category": "characters", "rect": [0.41, 0.5, 0.15, 0.28], "z": 0.28, "representation": "cutout-planes", "status": "draft-review" },
+    { "id": "foreground", "label": "Elementos do primeiro plano", "category": "nearWorld", "rect": [0, 0.7, 1, 0.3], "z": 0.55, "representation": "foreground-terrain-mesh", "status": "draft-review" }
+  ]
+}

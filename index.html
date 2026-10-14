@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#194c98" />
+    <title>Tamarind | Mundo 3D</title>
+  </head>
+  <body>
+    <main id="scene" aria-label="Mundo 3D Tamarind">
+      <div id="scene-status" role="status">Carregando o blockout 3D...</div>
+      <img
+        class="logo-tamarind"
+        src="/artwork/ui/logotamarindPNG.png"
+        alt="Tamarind"
+        width="1983"
+        height="793"
+      />
+      <nav class="top-navigation" aria-label="Navegação principal">
+        <a class="top-navigation__link" href="#home" aria-current="page">Home</a>
+        <a class="top-navigation__link" href="#projetos">Projetos</a>
+        <a class="top-navigation__link" href="#sobre">Sobre</a>
+        <a class="top-navigation__link" href="#contato">Contato</a>
+      </nav>
+      <button
+        class="day-night-toggle"
+        id="day-night-toggle"
+        type="button"
+        aria-label="Ativar modo noite"
+        aria-pressed="false"
+      >
+        <span class="day-night-toggle__option day-night-toggle__option--day" aria-hidden="true">☀ <b>DIA</b></span>
+        <span class="day-night-toggle__divider" aria-hidden="true">/</span>
+        <span class="day-night-toggle__option day-night-toggle__option--night" aria-hidden="true">☾ <b>NOITE</b></span>
+      </button>
+      <div class="navigation-hint" aria-label="Explore em 360 graus. Arraste para navegar.">
+        <span class="navigation-hint__title">Explore em 360°</span>
+        <span class="navigation-hint__instruction">
+          <svg viewBox="0 0 38 16" aria-hidden="true">
+            <path d="M1.5 8h35M6.5 3 1.5 8l5 5M31.5 3l5 5-5 5" />
+          </svg>
+          <span>Arraste para navegar</span>
+        </span>
+      </div>
+      <div class="landmark-navigation" aria-label="Áreas criativas da ilha">
+        <a class="landmark-link landmark-link--tecnomago" data-landmark="tecnomago" href="#videos-de-ia">
+          <span class="landmark-link__icon landmark-link__icon--mage" aria-hidden="true">
+            <img
+              class="hotspot-icon"
+              src="/artwork/ui/icone-videos-ia.png"
+              alt=""
+              width="1254"
+              height="1254"
+            />
+          </span>
+          <span class="landmark-link__label">Vídeos de IA</span>
+          <span class="landmark-link__arrow" aria-hidden="true">→</span>
+        </a>
+
+        <a class="landmark-link landmark-link--apps" data-landmark="apps" href="#apps-sites">
+          <span class="landmark-link__icon" aria-hidden="true">
+            <img
+              class="hotspot-icon"
+              src="/artwork/ui/icone-app-web.png"
+              alt=""
+              width="1254"
+              height="1254"
+            />
+          </span>
+          <span class="landmark-link__label">APPS/SITE</span>
+          <span class="landmark-link__arrow" aria-hidden="true">→</span>
+        </a>
+
+        <a class="landmark-link landmark-link--architecture" data-landmark="architecture" href="#3d-arquitetura">
+          <span class="landmark-link__icon" aria-hidden="true">
+            <img
+              class="hotspot-icon"
+              src="/artwork/ui/icone-3d-arquitetura.png"
+              alt=""
+              width="1254"
+              height="1254"
+            />
+          </span>
+          <span class="landmark-link__label">3D/Arquitetura</span>
+          <span class="landmark-link__arrow" aria-hidden="true">→</span>
+        </a>
+      </div>
+      <div class="scene-controls">
+        <span>Blockout 3D · mova o mouse para observar a profundidade</span>
+        <button id="recenter" type="button">Recentralizar</button>
+      </div>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

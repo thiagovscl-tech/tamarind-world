@@ -1,0 +1,261 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #11161d;
+  color: #e8edf1;
+  font: 13px/1.4 Inter, "Segoe UI", sans-serif;
+}
+
+button,
+select,
+input {
+  font: inherit;
+}
+
+.studio {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+}
+
+.toolbar {
+  display: flex;
+  min-height: 66px;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #303944;
+  background: #1b222b;
+}
+
+.brand {
+  display: flex;
+  min-width: 136px;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand > a {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid #74808a;
+  border-radius: 5px;
+  color: #f4d59b;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.brand div,
+.layer-picker,
+.range-control {
+  display: grid;
+  gap: 3px;
+}
+
+.brand strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.brand span,
+.layer-picker span,
+.range-control span {
+  color: #aab5c0;
+  font-size: 11px;
+}
+
+.layer-picker select {
+  width: 175px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #47525d;
+  border-radius: 4px;
+  background: #11171e;
+  color: #edf1f4;
+}
+
+.segmented {
+  display: flex;
+  padding: 2px;
+  border: 1px solid #46515d;
+  border-radius: 5px;
+}
+
+.segmented button,
+.text-button,
+.icon-button,
+.primary-button {
+  min-height: 32px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #d8dfe5;
+  cursor: pointer;
+}
+
+.segmented button {
+  padding: 0 10px;
+}
+
+.segmented button.active {
+  background: #374450;
+  color: #fff;
+}
+
+.range-control {
+  min-width: 115px;
+}
+
+.range-control span {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.range-control output {
+  color: #e5ebef;
+  font-variant-numeric: tabular-nums;
+}
+
+.range-control input {
+  width: 100%;
+  accent-color: #f0bd67;
+}
+
+.zoom-control {
+  min-width: 102px;
+}
+
+.view-modes {
+  margin-left: auto;
+}
+
+.view-modes button {
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 0;
+}
+
+.icon-button {
+  width: 34px;
+  font-size: 20px;
+}
+
+.text-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid #46515d;
+  text-decoration: none;
+}
+
+.file-button input {
+  display: none;
+}
+
+.primary-button {
+  padding: 0 12px;
+  background: #d69c4c;
+  color: #15191d;
+  font-weight: 650;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+button:not(:disabled):hover,
+.text-button:hover {
+  filter: brightness(1.14);
+}
+
+.work-area {
+  display: grid;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) 30px;
+}
+
+.viewport {
+  position: relative;
+  overflow: auto;
+  background-color: #0c1117;
+  background-image: linear-gradient(45deg, #171e26 25%, transparent 25%), linear-gradient(-45deg, #171e26 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #171e26 75%), linear-gradient(-45deg, transparent 75%, #171e26 75%);
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-size: 16px 16px;
+}
+
+#art-canvas {
+  display: block;
+  width: min(100%, 1680px);
+  height: auto;
+  margin: 0 auto;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+#art-canvas[data-tool='erase'] {
+  cursor: cell;
+}
+
+.loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #c2ccd4;
+  pointer-events: none;
+}
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 14px;
+  border-top: 1px solid #303944;
+  background: #1b222b;
+  color: #9aa6b0;
+  font-size: 11px;
+}
+
+.statusbar span:first-child {
+  color: #d7dee3;
+}
+
+@media (max-width: 1050px) {
+  .toolbar {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 8px 10px;
+  }
+
+  .brand {
+    min-width: 110px;
+  }
+
+  .layer-picker select {
+    width: 145px;
+  }
+
+  .actions {
+    margin-left: 0;
+  }
+}

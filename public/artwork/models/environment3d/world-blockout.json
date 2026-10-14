@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 3,
+  "masterReference": "/artwork/source/layoutTamarind.png",
+  "cameraTarget": [0, -10, -55],
+  "valley": {
+    "minX": -48, "maxX": 48, "minZ": -88, "maxZ": 25,
+    "baseY": -10, "wallHeight": 22, "slopeWidth": 35,
+    "farRimDepth": 33, "farRimHeight": 24,
+    "eastRidgeX": 35, "eastRidgeZ": -55, "eastRidgeHeight": 11,
+    "eastRidgeWidth": 11, "eastRidgeDepth": 24, "eastRidgeLean": 0.08
+  },
+  "sun": { "position": [20, 17, -132], "radius": 5 },
+  "mountainRanges": [
+    {
+      "id": "extreme-background", "z": -164, "depth": 30, "base": 8, "color": "#38447f",
+      "ridge": [[-50, 13], [-43, 20], [-36, 15], [-28, 24], [-20, 16], [-12, 22], [-4, 13], [4, 24], [12, 16], [20, 25], [28, 15], [36, 22], [44, 13], [51, 19]]
+    },
+    {
+      "id": "background-range", "z": -137, "depth": 28, "base": 1, "color": "#414782",
+      "ridge": [[-52, 8], [-45, 17], [-38, 11], [-31, 21], [-23, 13], [-15, 19], [-7, 9], [1, 22], [9, 12], [17, 20], [25, 10], [33, 18], [41, 9], [50, 16]]
+    },
+    {
+      "id": "midground-range", "z": -109, "depth": 27, "base": -5, "color": "#51447e",
+      "ridge": [[-50, 3], [-43, 12], [-36, 6], [-29, 17], [-22, 8], [-15, 14], [-8, 4], [0, 17], [8, 7], [16, 18], [24, 6], [32, 15], [40, 4], [50, 12]]
+    }
+  ],
+  "plateaus": [
+    { "id": "bear-forecliff", "x": -6.8, "z": 2.5, "top": 0, "height": 7.2, "topRadius": 8.5, "baseRadius": 12, "depthScale": 0.72, "color": "#574044" },
+    { "id": "castle-mountain", "x": 2, "z": -79, "top": 17, "height": 10, "topRadius": 28, "baseRadius": 39, "depthScale": 0.62, "color": "#59445a" }
+  ],
+  "castle": { "x": 2, "y": 19.5, "z": -79 },
+  "river": [
+    [12, -10, -55], [9, -10.5, -43], [2, -11, -32], [-4, -12, -20], [4, -13, -8], [12, -14, 5], [19, -15, 19]
+  ],
+  "bridges": [
+    { "id": "near-bridge", "start": [-14, -3.1, -10], "end": [14, -3.1, -10], "archDrop": 3, "deckWidth": 2 },
+    { "id": "middle-bridge", "start": [-22, 0.7, -33], "end": [22, 1.7, -33], "archDrop": 4, "deckWidth": 2.25 },
+    { "id": "castle-bridge", "start": [16, 16.7, -66], "end": [37, 8, -55], "archDrop": 2.5, "deckWidth": 2.1 }
+  ],
+  "trees": [
+    { "position": [-16, -1.1, -3], "scale": 1.1 }, { "position": [-12.4, -0.3, 0], "scale": 0.95 },
+    { "position": [-2, -3, 9], "scale": 0.86 }, { "position": [20, -1, 8], "scale": 0.95 },
+    { "position": [-22, 7.8, -36], "scale": 0.88 }, { "position": [-15, 7.8, -38], "scale": 0.75 },
+    { "position": [14, 7.8, -34], "scale": 0.82 }, { "position": [21, 7.8, -36], "scale": 0.72 },
+    { "position": [-32, -10, -8], "scale": 0.92 }, { "position": [31, -8, -14], "scale": 0.82 },
+    { "position": [-24, -17, -49], "scale": 0.72 }, { "position": [26, -15, -38], "scale": 0.75 },
+    { "position": [3, -18, -13], "scale": 0.68 }, { "position": [23, -19, 14], "scale": 0.72 }
+  ],
+  "bear": { "x": -6.2, "z": 1.4, "height": 5.8 }
+}
