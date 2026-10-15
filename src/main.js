@@ -5,6 +5,9 @@ import { createRenderer } from './scene/createRenderer.js';
 import { createWorld3d } from './scene3d/createWorld3d.js';
 import { updateBearProcedural } from './scene3d/createBearCharacter3d.js';
 
+console.time('[Tamarind] tempo até first render');
+console.time('[Tamarind] tempo até mundo completo');
+
 const container = document.querySelector('#scene');
 const status = document.querySelector('#scene-status');
 const navigationHint = document.querySelector('.navigation-hint');
@@ -82,48 +85,57 @@ function createDayNightController(scene, activeRenderer, landmarks, activeWater)
 
   const emissiveMaterials = [];
   const seenMaterials = new Set();
+  const seenLightTargets = new Set();
+  const localLights = [];
   const luminousName = /window|glass|lamp|light|emissive|lantern/i;
-  scene.traverse((object) => {
-    if (!object.isMesh) return;
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
-    for (const material of materials) {
-      if (!material?.emissive || seenMaterials.has(material)) continue;
-      const label = `${material.name || ''} ${object.name || ''}`;
-      const emissiveEnergy = Math.max(material.emissive.r, material.emissive.g, material.emissive.b)
-        * material.emissiveIntensity;
-      if (emissiveEnergy <= 0.01 && !luminousName.test(label)) continue;
-      seenMaterials.add(material);
-      emissiveMaterials.push({
-        material,
-        dayColor: material.emissive.clone(),
-        dayIntensity: material.emissiveIntensity,
-        nightColor: new THREE.Color('#ff9a45'),
-        nightIntensity: Math.max(1.85, material.emissiveIntensity * 2.4),
-      });
-    }
-  });
+  const refresh = () => {
+    scene.traverse((object) => {
+      if (!object.isMesh) return;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of materials) {
+        if (!material?.emissive || seenMaterials.has(material)) continue;
+        const label = `${material.name || ''} ${object.name || ''}`;
+        const emissiveEnergy = Math.max(material.emissive.r, material.emissive.g, material.emissive.b)
+          * material.emissiveIntensity;
+        if (emissiveEnergy <= 0.01 && !luminousName.test(label)) continue;
+        seenMaterials.add(material);
+        emissiveMaterials.push({
+          material,
+          dayColor: material.emissive.clone(),
+          dayIntensity: material.emissiveIntensity,
+          nightColor: new THREE.Color('#ff9a45'),
+          nightIntensity: Math.max(1.85, material.emissiveIntensity * 2.4),
+        });
+      }
+    });
 
-  const localLightTargets = [
-    ...Object.values(landmarks),
-    scene.getObjectByName('OrientalPagoda'),
-    scene.getObjectByName('DistantHillCastleGLB'),
-  ].filter(Boolean);
-  const localLights = localLightTargets.map((landmark, index) => {
-    const bounds = new THREE.Box3().setFromObject(landmark);
-    const size = bounds.getSize(new THREE.Vector3());
-    const position = bounds.getCenter(new THREE.Vector3());
-    position.y = THREE.MathUtils.lerp(bounds.min.y, bounds.max.y, 0.52);
-    position.z = bounds.max.z + THREE.MathUtils.clamp(size.z * 0.04, 0.4, 1);
-    const light = new THREE.PointLight(index === 0 ? '#ff9a55' : '#ffb35c', 0, 18, 2);
-    light.name = `NightLandmarkFill_${index}`;
-    light.position.copy(position);
-    light.castShadow = false;
-    scene.add(light);
-    return light;
-  });
+    const localLightTargets = [
+      ...Object.values(landmarks),
+      scene.getObjectByName('OrientalPagoda'),
+      scene.getObjectByName('DistantHillCastleGLB'),
+    ].filter(Boolean);
+    for (const landmark of localLightTargets) {
+      if (seenLightTargets.has(landmark)) continue;
+      seenLightTargets.add(landmark);
+      const bounds = new THREE.Box3().setFromObject(landmark);
+      const size = bounds.getSize(new THREE.Vector3());
+      const position = bounds.getCenter(new THREE.Vector3());
+      position.y = THREE.MathUtils.lerp(bounds.min.y, bounds.max.y, 0.52);
+      position.z = bounds.max.z + THREE.MathUtils.clamp(size.z * 0.04, 0.4, 1);
+      const index = localLights.length;
+      const light = new THREE.PointLight(index === 0 ? '#ff9a55' : '#ffb35c', 0, 18, 2);
+      light.name = `NightLandmarkFill_${index}`;
+      light.position.copy(position);
+      light.castShadow = false;
+      scene.add(light);
+      localLights.push(light);
+    }
+  };
+  refresh();
 
   const colorScratch = new THREE.Color();
   return {
+    refresh,
     update(value) {
       scene.background.copy(colorScratch.copy(day.background).lerp(night.background, value));
       scene.fog.color.copy(colorScratch.copy(day.fogColor).lerp(night.fogColor, value));
@@ -265,7 +277,7 @@ async function initializeScene() {
       water: loadedWater,
       coast: loadedCoast,
       landmarks,
-      updateGoatWalk,
+      startSecondaryLoad,
       cameraTarget,
       cameraPosition,
     } = await createWorld3d();
@@ -275,19 +287,24 @@ async function initializeScene() {
     coast = loadedCoast;
     dayNightController = createDayNightController(scene, renderer, landmarks, loadedWater);
     dayNightController.update(nightMix);
-    landmarkTargets = Object.fromEntries(
-      Object.entries(landmarks).map(([key, object]) => {
-        const objectBounds = new THREE.Box3().setFromObject(object);
-        const objectSize = objectBounds.getSize(new THREE.Vector3());
-        objectBounds.getCenter(landmarkWorldPosition);
-        const anchorGap = THREE.MathUtils.clamp(objectSize.y * 0.08, 1.4, 2.8);
-        landmarkWorldPosition.y = objectBounds.max.y + anchorGap;
-        return [key, landmarkWorldPosition.clone()];
-      }),
-    );
+    const refreshLandmarkAnchors = () => {
+      landmarkTargets = Object.fromEntries(
+        Object.entries(landmarks).map(([key, object]) => {
+          const objectBounds = new THREE.Box3().setFromObject(object);
+          const objectSize = objectBounds.getSize(new THREE.Vector3());
+          objectBounds.getCenter(landmarkWorldPosition);
+          const anchorGap = THREE.MathUtils.clamp(objectSize.y * 0.08, 1.4, 2.8);
+          landmarkWorldPosition.y = objectBounds.max.y + anchorGap;
+          return [key, landmarkWorldPosition.clone()];
+        }),
+      );
+    };
+    refreshLandmarkAnchors();
     camera.userData.baseTarget.set(...cameraTarget);
     if (cameraPosition) camera.position.set(...cameraPosition);
     camera.lookAt(camera.userData.baseTarget);
+    renderer.render(scene, camera);
+    console.timeEnd('[Tamarind] tempo até first render');
     status.remove();
     const clock = new THREE.Clock();
     const basePosition = camera.position.clone();
@@ -299,6 +316,7 @@ async function initializeScene() {
     let performanceFrames = 0;
     let performanceSampleStart = performance.now();
     let performanceReported = false;
+    let updateGoatWalk = null;
     renderer.setAnimationLoop(() => {
       const delta = Math.min(clock.getDelta(), 0.05);
       const elapsed = clock.elapsedTime;
@@ -333,6 +351,25 @@ async function initializeScene() {
       }
     });
     initialized = true;
+
+    startSecondaryLoad({
+      onAssetLoaded: ({ key, object }) => {
+        if (key === 'coast') coast = object;
+        dayNightController.refresh();
+        dayNightController.update(nightMix);
+        refreshLandmarkAnchors();
+        console.info(`[Tamarind] Asset secundário integrado: ${key}.`);
+      },
+    }).then((secondary) => {
+      updateGoatWalk = secondary.updateGoatWalk;
+      dayNightController.refresh();
+      dayNightController.update(nightMix);
+      refreshLandmarkAnchors();
+      console.timeEnd('[Tamarind] tempo até mundo completo');
+    }).catch((error) => {
+      console.error('Falha ao carregar assets secundários do mundo Tamarind.', error);
+      console.timeEnd('[Tamarind] tempo até mundo completo');
+    });
   } catch (error) {
     console.error('Falha ao carregar o mundo 3D Tamarind.', error);
     status.textContent = 'Não foi possível carregar o mundo 3D.';
