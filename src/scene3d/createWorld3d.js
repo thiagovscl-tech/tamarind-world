@@ -13,6 +13,7 @@ const TEMPLE_URL = '/artwork/models/templo.web.glb';
 const SETTLEMENT_HOUSE_URL = '/artwork/models/casasite.web.glb';
 const BACKGROUND_CASTLE_URL = '/artwork/models/fantastic_castle.glb';
 const RIGGED_GOAT_URL = '/artwork/models/bode_rigged.web.glb';
+const WIZARD_NPC_URL = '/artwork/models/free_battlemage_wizard.glb';
 const COAST_DATA_URL = '/artwork/data/coastline.web.json';
 const TARGET_HORIZONTAL_SIZE = 150;
 
@@ -383,6 +384,150 @@ async function loadRiggedGoat(terrain, { treePlacements = [], avoidObjects = [] 
   console.info('[GOAT] GLB carregado e assentado.', JSON.stringify(diagnostics));
 
   return { goat, updateGoatWalk };
+}
+
+async function loadWizardNpc(terrain, tecnomagoHouse) {
+  const gltf = await loadGlbOnce(WIZARD_NPC_URL, 'mago NPC');
+  const source = gltf.scene;
+  source.updateMatrixWorld(true);
+
+  const sourceBounds = new THREE.Box3().setFromObject(source);
+  const sourceSize = sourceBounds.getSize(new THREE.Vector3());
+  const sourceCenter = sourceBounds.getCenter(new THREE.Vector3());
+  const targetHeight = 2.7;
+  const uniformScale = targetHeight / Math.max(sourceSize.y, 0.0001);
+
+  const wizard = new THREE.Group();
+  wizard.name = 'TecnomagoWizardNpc';
+  wizard.scale.setScalar(uniformScale);
+  const visual = new THREE.Group();
+  visual.name = 'TecnomagoWizardNpcVisual';
+  source.position.set(-sourceCenter.x, -sourceBounds.min.y, -sourceCenter.z);
+  visual.add(source);
+  wizard.add(visual);
+
+  let meshCount = 0;
+  const materials = new Set();
+  source.traverse((object) => {
+    if (!object.isMesh) return;
+    meshCount += 1;
+    object.castShadow = false;
+    object.receiveShadow = true;
+    object.frustumCulled = true;
+    const meshMaterials = Array.isArray(object.material) ? object.material : [object.material];
+    meshMaterials.filter(Boolean).forEach((material) => materials.add(material));
+  });
+
+  const houseBounds = new THREE.Box3().setFromObject(tecnomagoHouse);
+  const houseSize = houseBounds.getSize(new THREE.Vector3());
+  const houseCenter = houseBounds.getCenter(new THREE.Vector3());
+  const entranceDirection = new THREE.Vector2(
+    Math.cos(tecnomagoHouse.rotation.y),
+    -Math.sin(tecnomagoHouse.rotation.y),
+  ).normalize();
+  const lateralDirection = new THREE.Vector2(-entranceDirection.y, entranceDirection.x);
+  const frontDistance = Math.max(houseSize.x, houseSize.z) * 0.58 + 1.2;
+  const routeCenter = new THREE.Vector2(
+    houseCenter.x + entranceDirection.x * frontDistance,
+    houseCenter.z + entranceDirection.y * frontDistance,
+  );
+  const supportOffsets = [[0, 0], [-0.65, 0], [0.65, 0], [0, -0.65], [0, 0.65]];
+  const safeSurfaceAt = (x, z) => {
+    const samples = supportOffsets
+      .map(([dx, dz]) => terrainSurfaceAt(terrain, x + dx, z + dz))
+      .filter(Boolean);
+    if (samples.length !== supportOffsets.length) return null;
+    if (samples.some((surface) => surface.normal.y < 0.72)) return null;
+    const heights = samples.map((surface) => surface.point.y);
+    if (Math.max(...heights) - Math.min(...heights) > 0.75) return null;
+    return samples[0];
+  };
+  const waypointSpecs = [
+    [-3.1, -0.55], [-0.5, 0.7], [2.8, -0.25],
+    [1.65, -1.15], [-1.75, -1.05], [0.8, -1.55],
+  ];
+  const waypoints = waypointSpecs.map(([lateral, forward]) => {
+    const x = routeCenter.x + lateralDirection.x * lateral + entranceDirection.x * forward;
+    const z = routeCenter.y + lateralDirection.y * lateral + entranceDirection.y * forward;
+    return { x, z, surface: safeSurfaceAt(x, z) };
+  }).filter((waypoint) => waypoint.surface).slice(0, 3);
+  if (waypoints.length < 2) {
+    throw new Error('Não foi possível encontrar um percurso seguro para o mago em frente à Casa do Tecnomago.');
+  }
+
+  wizard.position.set(
+    waypoints[0].x,
+    waypoints[0].surface.point.y + 0.018,
+    waypoints[0].z,
+  );
+  wizard.updateMatrixWorld(true);
+  const settledBounds = new THREE.Box3().setFromObject(wizard);
+  wizard.position.y += waypoints[0].surface.point.y - settledBounds.min.y + 0.018;
+  const groundClearance = wizard.position.y - waypoints[0].surface.point.y;
+
+  const toTarget = new THREE.Vector3();
+  const direction = new THREE.Vector3();
+  const targetQuaternion = new THREE.Quaternion();
+  const upAxis = new THREE.Vector3(0, 1, 0);
+  const baseSpeed = 0.38;
+  let sequenceStartedAt = null;
+  let movementState = 'pause';
+  let pauseEndsAt = 1.4;
+  let waypointIndex = 1;
+  let routeDirection = 1;
+  let currentSpeed = baseSpeed;
+  let movementWeight = 0;
+
+  function updateWizardNpc(elapsedTime, deltaTime) {
+    if (sequenceStartedAt === null) sequenceStartedAt = elapsedTime;
+    const sequenceTime = elapsedTime - sequenceStartedAt;
+    if (movementState === 'pause' && sequenceTime >= pauseEndsAt) {
+      movementState = 'move';
+      currentSpeed = baseSpeed * (0.9 + Math.random() * 0.16);
+    }
+
+    const isMoving = movementState === 'move';
+    movementWeight = THREE.MathUtils.damp(movementWeight, isMoving ? 1 : 0, 3.2, deltaTime);
+    if (isMoving) {
+      const target = waypoints[waypointIndex];
+      toTarget.set(target.x - wizard.position.x, 0, target.z - wizard.position.z);
+      const distance = toTarget.length();
+      if (distance <= 0.06) {
+        if (waypointIndex === waypoints.length - 1) routeDirection = -1;
+        if (waypointIndex === 0) routeDirection = 1;
+        waypointIndex += routeDirection;
+        movementState = 'pause';
+        pauseEndsAt = sequenceTime + 2.2 + Math.random() * 2.4;
+      } else {
+        direction.copy(toTarget).multiplyScalar(1 / distance);
+        const rhythm = 0.97 + Math.sin(elapsedTime * 0.43 + waypointIndex) * 0.03;
+        wizard.position.addScaledVector(
+          direction,
+          Math.min(currentSpeed * rhythm * deltaTime, distance),
+        );
+        const surface = terrainSurfaceAt(terrain, wizard.position.x, wizard.position.z);
+        if (surface) wizard.position.y = surface.point.y + groundClearance;
+        const targetYaw = Math.atan2(direction.x, direction.z);
+        targetQuaternion.setFromAxisAngle(upAxis, targetYaw);
+        wizard.quaternion.slerp(targetQuaternion, 1 - Math.exp(-deltaTime * 2.8));
+      }
+    }
+
+    visual.position.y = (Math.sin(elapsedTime * 2.05) + 1) * 0.009 * movementWeight;
+    visual.rotation.z = Math.sin(elapsedTime * 1.42 + 0.5) * 0.009 * movementWeight;
+    visual.rotation.x = Math.sin(elapsedTime * 1.08) * 0.004 * movementWeight;
+  }
+
+  console.info('[WIZARD NPC] GLB carregado sem rig/animações.', {
+    position: wizard.position.toArray(),
+    scale: uniformScale,
+    meshes: meshCount,
+    materials: [...materials].map((material) => material.name || '(sem nome)'),
+    animations: gltf.animations.length,
+    waypoints: waypoints.map((waypoint) => [waypoint.x, waypoint.surface.point.y, waypoint.z]),
+  });
+
+  return { wizard, updateWizardNpc };
 }
 
 function sampleTerrainOutline(terrain, center, segments = 112) {
@@ -2305,6 +2450,8 @@ export async function createWorld3d() {
         avoidObjects: goatAvoidObjects,
       }));
       addWorldAsset('goat', goatResult.goat);
+      const wizardResult = await runWhenIdle(() => loadWizardNpc(terrainGroup, tecnomagoHouse));
+      addWorldAsset('wizard', wizardResult.wizard);
       console.timeEnd('[Tamarind] fase 3 — mundo habitado');
 
       console.time('[Tamarind] fase 4 — acabamento costeiro');
@@ -2325,6 +2472,8 @@ export async function createWorld3d() {
         vegetation,
         goat: goatResult.goat,
         updateGoatWalk: goatResult.updateGoatWalk,
+        wizard: wizardResult.wizard,
+        updateWizardNpc: wizardResult.updateWizardNpc,
         landmarks,
       };
     })();

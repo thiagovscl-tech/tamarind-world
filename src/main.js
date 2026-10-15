@@ -345,6 +345,7 @@ async function initializeScene() {
     let performanceSampleStart = performance.now();
     let performanceReported = false;
     let updateGoatWalk = null;
+    let updateWizardNpc = null;
     renderer.setAnimationLoop(() => {
       const delta = Math.min(clock.getDelta(), 0.05);
       const elapsed = clock.elapsedTime;
@@ -354,6 +355,7 @@ async function initializeScene() {
       easedPointer.lerp(pointer, smooth);
       updateBearProcedural(bear, easedPointer, elapsed, delta);
       updateGoatWalk?.(elapsed, delta);
+      updateWizardNpc?.(elapsed, delta);
       orbitOffset.copy(baseOffset).applyAxisAngle(THREE.Object3D.DEFAULT_UP, orbitYaw);
       targetPosition.copy(baseTarget).add(orbitOffset);
       targetPosition.y -= easedPointer.y * 1.2;
@@ -392,6 +394,7 @@ async function initializeScene() {
       },
     }).then((secondary) => {
       updateGoatWalk = secondary.updateGoatWalk;
+      updateWizardNpc = secondary.updateWizardNpc;
       dayNightController.refresh();
       dayNightController.update(nightMix);
       refreshLandmarkAnchors();
