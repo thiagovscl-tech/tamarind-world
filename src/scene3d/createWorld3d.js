@@ -550,6 +550,31 @@ function createTerrainCoastRibbon(name, terrain, center, radii, offsets, predica
   return mesh;
 }
 
+function sampleTerrainFootprint(terrain, center, halfX, halfZ, yaw) {
+  const cosYaw = Math.cos(yaw);
+  const sinYaw = Math.sin(yaw);
+  const samples = [
+    [0, 0],
+    [halfX, 0], [-halfX, 0],
+    [0, halfZ], [0, -halfZ],
+    [halfX, halfZ], [halfX, -halfZ],
+    [-halfX, halfZ], [-halfX, -halfZ],
+    [halfX * 0.5, halfZ * 0.5],
+    [halfX * 0.5, -halfZ * 0.5],
+    [-halfX * 0.5, halfZ * 0.5],
+    [-halfX * 0.5, -halfZ * 0.5],
+  ];
+  const heights = samples.map(([localX, localZ]) => terrainHeightAt(
+    terrain,
+    center.x + localX * cosYaw + localZ * sinYaw,
+    center.z - localX * sinYaw + localZ * cosYaw,
+  )).sort((a, b) => a - b);
+  return {
+    heights,
+    supportY: heights[Math.floor(heights.length * 0.5)],
+  };
+}
+
 function createPrecomputedTerrainRibbon(name, data, material) {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(data.positions, 3));
@@ -744,24 +769,14 @@ async function loadTecnomagoHouse(terrain) {
   const yaw = -1.00;
   const footprintX = size.x * uniformScale * 0.42;
   const footprintZ = size.z * uniformScale * 0.42;
-  const cosYaw = Math.cos(yaw);
-  const sinYaw = Math.sin(yaw);
-  const supportHeights = [
-    [0, 0],
-    [footprintX, 0], [-footprintX, 0],
-    [0, footprintZ], [0, -footprintZ],
-    [footprintX, footprintZ], [footprintX, -footprintZ],
-    [-footprintX, footprintZ], [-footprintX, -footprintZ],
-    [footprintX * 0.5, footprintZ * 0.5],
-    [footprintX * 0.5, -footprintZ * 0.5],
-    [-footprintX * 0.5, footprintZ * 0.5],
-    [-footprintX * 0.5, -footprintZ * 0.5],
-  ].map(([localX, localZ]) => terrainHeightAt(
+  const footprintSupport = sampleTerrainFootprint(
     terrain,
-    target.x + localX * cosYaw + localZ * sinYaw,
-    target.z - localX * sinYaw + localZ * cosYaw,
-  )).sort((a, b) => a - b);
-  target.y = supportHeights[Math.floor((supportHeights.length - 1) * 0.75)];
+    target,
+    footprintX,
+    footprintZ,
+    yaw,
+  );
+  target.y = footprintSupport.supportY;
 
   const scaledCenter = center.clone().multiplyScalar(uniformScale);
   scaledCenter.applyAxisAngle(THREE.Object3D.DEFAULT_UP, yaw);
@@ -810,12 +825,14 @@ async function loadTecnomagoHouse(terrain) {
   }
   houseGroup.userData.entranceAccess = accessGroup;
 
-  console.info('[Tamarind] Casa do Tecnomago carregada.', {
+  console.info('[Tamarind] Casa do Tecnomago carregada.', JSON.stringify({
     position: houseGroup.position.toArray(),
     rotationY: yaw,
     scale: uniformScale,
+    terrainSupportY: target.y,
+    supportHeights: footprintSupport.heights,
     triangles: 639968,
-  });
+  }));
   return houseGroup;
 }
 
@@ -1440,8 +1457,6 @@ async function createMedievalSettlement(terrain, oceanY) {
     canvasRed: new THREE.MeshStandardMaterial({ color: '#8f4c3d', roughness: 0.9, side: THREE.DoubleSide }),
     window: new THREE.MeshStandardMaterial({ color: '#e1a15c', emissive: '#59280f', emissiveIntensity: 0.45 }),
     path: new THREE.MeshStandardMaterial({ color: '#7f705d', roughness: 1 }),
-    soil: new THREE.MeshStandardMaterial({ color: '#5d4932', roughness: 1 }),
-    crop: new THREE.MeshStandardMaterial({ color: '#64713a', roughness: 1 }),
   };
 
   const houses = [
@@ -1569,23 +1584,6 @@ async function createMedievalSettlement(terrain, oceanY) {
   });
   stakes.instanceMatrix.needsUpdate = true;
   settlement.add(stakes);
-
-  const farmCenter = { x: -25, z: 27 };
-  const farmSurface = terrainSurfaceAt(terrain, farmCenter.x, farmCenter.z);
-  if (farmSurface?.normal.y > 0.7) {
-    for (let row = -2; row <= 2; row += 1) {
-      const soil = new THREE.Mesh(new THREE.BoxGeometry(8, 0.12, 0.85), materials.soil);
-      soil.position.set(farmCenter.x, terrainHeightAt(terrain, farmCenter.x, farmCenter.z + row * 1.25) + 0.02, farmCenter.z + row * 1.25);
-      soil.rotation.y = 0.16;
-      soil.receiveShadow = true;
-      settlement.add(soil);
-      const crop = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.28, 0.28), materials.crop);
-      crop.position.copy(soil.position);
-      crop.position.y += 0.2;
-      crop.rotation.y = soil.rotation.y;
-      settlement.add(crop);
-    }
-  }
 
   console.info('[Tamarind] Camada medieval leve criada.', {
     houses: houses.length,
