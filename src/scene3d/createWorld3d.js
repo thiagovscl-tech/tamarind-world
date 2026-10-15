@@ -1522,36 +1522,78 @@ async function createMedievalSettlement(terrain, oceanY) {
     [[-4, 11], [-9, 25], [-14, 40]],
     [[1, 12], [1, 27], [0, 42]],
   ];
-  const pathTransforms = [];
+  const pathStoneBatches = [[], [], []];
+  const pathVariation = (index, salt) => {
+    const value = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43758.5453;
+    return value - Math.floor(value);
+  };
+  let pathStoneIndex = 0;
   for (const line of pathLines) {
-    for (let segment = 0; segment < line.length - 1; segment += 1) {
-      const [ax, az] = line[segment];
-      const [bx, bz] = line[segment + 1];
-      const length = Math.hypot(bx - ax, bz - az);
-      const pieces = Math.max(2, Math.ceil(length / 2.8));
-      for (let i = 0; i < pieces; i += 1) {
-        const t = (i + 0.5) / pieces;
-        const x = THREE.MathUtils.lerp(ax, bx, t);
-        const z = THREE.MathUtils.lerp(az, bz, t);
-        if (Math.hypot(x - 10, z - 33.5) < 13) continue;
-        const surface = terrainSurfaceAt(terrain, x, z);
-        if (!surface || surface.normal.y < 0.64) continue;
-        pathTransforms.push({ x, y: surface.point.y + 0.025, z, yaw: Math.atan2(bx - ax, bz - az) });
-      }
+    const pathCurve = new THREE.CatmullRomCurve3(
+      line.map(([x, z]) => new THREE.Vector3(x, 0, z)),
+      false,
+      'centripetal',
+    );
+    const pieces = Math.max(3, Math.ceil(pathCurve.getLength() / 1.7));
+    for (let i = 0; i < pieces; i += 1) {
+      const stoneIndex = pathStoneIndex;
+      pathStoneIndex += 1;
+      if (pathVariation(stoneIndex, 1) < 0.12) continue;
+      const t = THREE.MathUtils.clamp(
+        (i + 0.5 + (pathVariation(stoneIndex, 2) - 0.5) * 0.42) / pieces,
+        0.04,
+        0.96,
+      );
+      const point = pathCurve.getPoint(t);
+      const tangent = pathCurve.getTangent(t);
+      const lateralOffset = (pathVariation(stoneIndex, 3) - 0.5) * 0.72;
+      const x = point.x - tangent.z * lateralOffset;
+      const z = point.z + tangent.x * lateralOffset;
+      if (x < -35 || x > 26 || z < -16 || z > 31) continue;
+      if (Math.hypot(x - 10, z - 33.5) < 13) continue;
+      const surface = terrainSurfaceAt(terrain, x, z);
+      if (!surface || surface.normal.y < 0.72) continue;
+      const variant = stoneIndex % pathStoneBatches.length;
+      pathStoneBatches[variant].push({
+        x,
+        y: surface.point.y + 0.035,
+        z,
+        yaw: Math.atan2(tangent.x, tangent.z) + (pathVariation(stoneIndex, 4) - 0.5) * 0.48,
+        scaleX: 0.82 + pathVariation(stoneIndex, 5) * 0.42,
+        scaleY: 0.72 + pathVariation(stoneIndex, 6) * 0.34,
+        scaleZ: 0.58 + pathVariation(stoneIndex, 7) * 0.38,
+      });
     }
   }
-  const pathMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1.65, 0.12, 1), materials.path, pathTransforms.length);
+  const pathStoneGeometries = [
+    new THREE.CylinderGeometry(0.72, 0.78, 0.14, 6),
+    new THREE.CylinderGeometry(0.68, 0.76, 0.12, 7),
+    new THREE.CylinderGeometry(0.76, 0.7, 0.16, 8),
+  ];
+  const pathStoneMaterials = ['#756c60', '#82735f', '#665f58'].map((color) => (
+    new THREE.MeshStandardMaterial({ color, roughness: 1, metalness: 0 })
+  ));
   const pathDummy = new THREE.Object3D();
-  pathTransforms.forEach((item, index) => {
-    pathDummy.position.set(item.x, item.y, item.z);
-    pathDummy.rotation.set(0, item.yaw, 0);
-    pathDummy.scale.setScalar(1);
-    pathDummy.updateMatrix();
-    pathMesh.setMatrixAt(index, pathDummy.matrix);
+  pathStoneBatches.forEach((batch, variant) => {
+    const pathMesh = new THREE.InstancedMesh(
+      pathStoneGeometries[variant],
+      pathStoneMaterials[variant],
+      batch.length,
+    );
+    pathMesh.name = `CentralIrregularStonePath_${variant}`;
+    batch.forEach((item, index) => {
+      pathDummy.position.set(item.x, item.y, item.z);
+      pathDummy.rotation.set(0, item.yaw, 0);
+      pathDummy.scale.set(item.scaleX, item.scaleY, item.scaleZ);
+      pathDummy.updateMatrix();
+      pathMesh.setMatrixAt(index, pathDummy.matrix);
+    });
+    pathMesh.instanceMatrix.needsUpdate = true;
+    pathMesh.receiveShadow = true;
+    pathMesh.frustumCulled = true;
+    settlement.add(pathMesh);
   });
-  pathMesh.instanceMatrix.needsUpdate = true;
-  pathMesh.receiveShadow = true;
-  settlement.add(pathMesh);
+  const pathStoneCount = pathStoneBatches.reduce((total, batch) => total + batch.length, 0);
 
   const supportedCoast = [];
   for (let z = 34; z <= 68; z += 1) {
@@ -1603,7 +1645,7 @@ async function createMedievalSettlement(terrain, oceanY) {
   console.info('[Tamarind] Camada medieval leve criada.', {
     houses: houses.length,
     houseMeshes: houseSource.children.length,
-    pathInstances: pathTransforms.length,
+    pathInstances: pathStoneCount,
     palisadeStakes: stakeTransforms.length,
   });
   return settlement;
