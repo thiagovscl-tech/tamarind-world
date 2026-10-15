@@ -1872,4 +1872,3 @@ export async function createWorld3d() {
     cameraPosition: [0, Math.max(82, worldSize.y * 3.8), 150],
   };
 }
-
