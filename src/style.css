@@ -161,7 +161,7 @@ body.is-night-mode { background: #081526; }
 }
 
 #scene.is-night-mode .landmark-link {
-  box-shadow: 0 8px 24px rgb(0 4 16 / 40%), 0 0 14px rgb(238 178 76 / 24%), inset 0 1px rgb(255 255 255 / 7%);
+  box-shadow: 0 5px 14px rgb(0 4 16 / 30%), 0 0 7px rgb(238 178 76 / 15%), inset 0 1px rgb(255 255 255 / 5%);
 }
 
 .navigation-hint {
@@ -237,36 +237,36 @@ body.is-night-mode { background: #081526; }
 
 .landmark-link {
   --accent: #e0ad58;
-  --hotspot-size: 54px;
-  --expanded-width: 202px;
+  --hotspot-size: 41px;
+  --expanded-width: 154px;
   position: absolute;
   z-index: 1;
   display: flex;
   align-items: center;
   width: var(--hotspot-size);
   height: var(--hotspot-size);
-  padding: 2px;
+  padding: 1px;
   overflow: hidden;
-  border: 1px solid rgb(229 181 96 / 88%);
+  border: 0.75px solid rgb(229 181 96 / 76%);
   border-radius: 999px;
   background: rgb(17 17 19 / 88%);
-  box-shadow: 0 7px 22px rgb(4 8 18 / 30%), 0 0 10px rgb(225 161 72 / 16%), inset 0 1px rgb(255 255 255 / 6%);
+  box-shadow: 0 4px 12px rgb(4 8 18 / 25%), 0 0 6px rgb(225 161 72 / 11%), inset 0 1px rgb(255 255 255 / 5%);
   color: #f8f1e6;
   text-decoration: none;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  backdrop-filter: blur(8px) saturate(115%);
+  backdrop-filter: blur(6px) saturate(110%);
   transform: translate(-50%, -50%) scale(0.86);
   transform-origin: center;
   transition:
-    width 240ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 180ms ease,
-    visibility 180ms ease,
-    border-color 220ms ease,
-    box-shadow 220ms ease,
-    background 220ms ease,
-    transform 220ms ease;
+    width 210ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease,
+    visibility 160ms ease,
+    border-color 190ms ease,
+    box-shadow 190ms ease,
+    background 190ms ease,
+    transform 190ms ease;
   will-change: left, top, width, transform;
 }
 
@@ -283,34 +283,34 @@ body.is-night-mode { background: #081526; }
   width: var(--expanded-width);
   border-color: #f3c36f;
   background: rgb(17 17 19 / 94%);
-  box-shadow: 0 10px 28px rgb(4 8 18 / 36%), 0 0 16px rgb(232 171 72 / 22%);
-  transform: translate(-50%, -50%) scale(1.025);
+  box-shadow: 0 6px 16px rgb(4 8 18 / 30%), 0 0 8px rgb(232 171 72 / 15%);
+  transform: translate(-50%, -50%) scale(1.015);
   outline: none;
 }
 
 .landmark-link__icon {
-  flex: 0 0 calc(var(--hotspot-size) - 6px);
+  flex: 0 0 calc(var(--hotspot-size) - 4px);
   display: grid;
-  width: calc(var(--hotspot-size) - 6px);
-  height: calc(var(--hotspot-size) - 6px);
+  width: calc(var(--hotspot-size) - 4px);
+  height: calc(var(--hotspot-size) - 4px);
   place-items: center;
-  border: 1px solid var(--accent);
+  border: 0.75px solid var(--accent);
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, rgb(106 72 38 / 92%), rgb(25 20 18 / 96%) 68%);
   color: #f2b95d;
-  box-shadow: 0 0 12px rgb(225 161 72 / 24%);
+  box-shadow: 0 0 6px rgb(225 161 72 / 16%);
 }
 
 .landmark-link__icon--mage {
   --accent: #c977ff;
   background: radial-gradient(circle at 35% 30%, rgb(91 37 142 / 94%), rgb(24 13 48 / 96%) 70%);
   color: #e4a2ff;
-  box-shadow: 0 0 14px rgb(184 80 255 / 36%);
+  box-shadow: 0 0 7px rgb(184 80 255 / 23%);
 }
 
 .landmark-link__icon svg {
-  width: 25px;
-  height: 25px;
+  width: 19px;
+  height: 19px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
@@ -331,14 +331,14 @@ body.is-night-mode { background: #081526; }
   max-width: 0;
   overflow: hidden;
   margin-left: 0;
-  font-size: 15px;
-  font-weight: 450;
+  font-size: 12px;
+  font-weight: 500;
   letter-spacing: -0.01em;
   opacity: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
   transform: translateX(-5px);
-  transition: max-width 240ms cubic-bezier(0.22, 1, 0.36, 1), margin 240ms ease, opacity 150ms ease 35ms, transform 220ms ease;
+  transition: max-width 210ms cubic-bezier(0.22, 1, 0.36, 1), margin 200ms ease, opacity 140ms ease 25ms, transform 190ms ease;
 }
 
 .landmark-link__arrow {
@@ -346,33 +346,33 @@ body.is-night-mode { background: #081526; }
   width: 0;
   overflow: hidden;
   color: #f5e7cf;
-  font-size: 19px;
+  font-size: 15px;
   font-weight: 300;
   opacity: 0;
   transform: translateX(-4px);
-  transition: width 220ms ease, opacity 150ms ease 55ms, transform 220ms ease;
+  transition: width 190ms ease, opacity 140ms ease 40ms, transform 190ms ease;
 }
 
 .landmark-link:hover .landmark-link__label,
 .landmark-link:focus-visible .landmark-link__label {
-  max-width: 148px;
-  margin-left: 10px;
+  max-width: 118px;
+  margin-left: 7px;
   opacity: 1;
   transform: translateX(0);
 }
 
 .landmark-link:hover .landmark-link__arrow,
 .landmark-link:focus-visible .landmark-link__arrow {
-  width: 20px;
+  width: 15px;
   margin-left: auto;
-  margin-right: 8px;
+  margin-right: 6px;
   opacity: 1;
   transform: translateX(0);
 }
 
-.landmark-link--tecnomago { --expanded-width: 202px; }
+.landmark-link--tecnomago { --expanded-width: 154px; }
 .landmark-link--apps {
-  --expanded-width: 192px;
+  --expanded-width: 146px;
 }
 
 .landmark-link--apps .hotspot-icon {
@@ -393,7 +393,7 @@ body.is-night-mode { background: #081526; }
   border-radius: 50%;
 }
 .landmark-link--architecture {
-  --expanded-width: 232px;
+  --expanded-width: 176px;
 }
 
 .scene-controls {
@@ -476,15 +476,15 @@ body.is-night-mode { background: #081526; }
   .scene-controls { right: 10px; bottom: 10px; }
 
   .landmark-link {
-    --hotspot-size: 46px;
-    --expanded-width: 170px;
+    --hotspot-size: 36px;
+    --expanded-width: 132px;
   }
 
-  .landmark-link__icon svg { width: 21px; height: 21px; }
-  .landmark-link__label { font-size: 12px; }
-  .landmark-link--tecnomago { --expanded-width: 168px; }
-  .landmark-link--apps { --expanded-width: 160px; }
-  .landmark-link--architecture { --expanded-width: 194px; }
+  .landmark-link__icon svg { width: 17px; height: 17px; }
+  .landmark-link__label { font-size: 10.5px; }
+  .landmark-link--tecnomago { --expanded-width: 132px; }
+  .landmark-link--apps { --expanded-width: 125px; }
+  .landmark-link--architecture { --expanded-width: 151px; }
   .scene-controls span { display: none; }
 }
 
