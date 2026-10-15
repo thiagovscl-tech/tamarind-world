@@ -12,7 +12,6 @@ const TREE_URL = '/artwork/models/arvore.web.glb';
 const TEMPLE_URL = '/artwork/models/templo.web.glb';
 const SETTLEMENT_HOUSE_URL = '/artwork/models/casasite.web.glb';
 const BACKGROUND_CASTLE_URL = '/artwork/models/fantastic_castle.glb';
-const MILL_POND_URL = '/artwork/models/pond_with_waterfalls.glb';
 const RIGGED_GOAT_URL = '/artwork/models/bode_rigged.web.glb';
 const COAST_DATA_URL = '/artwork/data/coastline.web.json';
 const TARGET_HORIZONTAL_SIZE = 150;
@@ -1841,60 +1840,124 @@ function createWindmillPair(terrain) {
   return windmills;
 }
 
-async function loadMillPond(terrain) {
-  const source = (await loadGlbOnce(MILL_POND_URL, 'brejo dos moinhos')).scene;
-  source.updateMatrixWorld(true);
-
-  const bounds = new THREE.Box3().setFromObject(source);
-  const size = bounds.getSize(new THREE.Vector3());
-  const center = bounds.getCenter(new THREE.Vector3());
-  const targetWidth = 13;
-  const uniformScale = targetWidth / Math.max(size.x, size.z, 0.0001);
-  const target = new THREE.Vector3(-24, 0, -17);
-  const yaw = -0.22;
-  const halfBaseX = size.x * uniformScale * 0.43;
-  const halfBaseZ = size.z * uniformScale * 0.43;
-  const baseOffsets = [
-    [0, 0],
-    [-halfBaseX, 0], [halfBaseX, 0],
-    [0, -halfBaseZ], [0, halfBaseZ],
-    [-halfBaseX, -halfBaseZ], [halfBaseX, -halfBaseZ],
-    [-halfBaseX, halfBaseZ], [halfBaseX, halfBaseZ],
-  ];
-  const supportHeights = baseOffsets.map(([x, z]) => {
-    const offset = new THREE.Vector3(x, 0, z).applyAxisAngle(THREE.Object3D.DEFAULT_UP, yaw);
-    return terrainHeightAt(terrain, target.x + offset.x, target.z + offset.z);
-  }).sort((a, b) => a - b);
-  target.y = supportHeights[Math.floor(supportHeights.length * 0.55)];
-
-  const scaledCenter = center.clone().multiplyScalar(uniformScale);
-  scaledCenter.applyAxisAngle(THREE.Object3D.DEFAULT_UP, yaw);
-
+function createProceduralMillPond(terrain) {
   const pond = new THREE.Group();
-  pond.name = 'MillPondGLB';
-  pond.scale.setScalar(uniformScale);
-  pond.rotation.y = yaw;
-  pond.position.set(
-    target.x - scaledCenter.x,
-    target.y - bounds.min.y * uniformScale - 0.1,
-    target.z - scaledCenter.z,
-  );
-  pond.add(source);
-
-  source.traverse((object) => {
-    if (!object.isMesh) return;
-    object.castShadow = false;
-    object.receiveShadow = true;
-    object.frustumCulled = true;
+  pond.name = 'ProceduralMillPond';
+  const center = new THREE.Vector2(-24, -17);
+  const yaw = -0.22;
+  const cosYaw = Math.cos(yaw);
+  const sinYaw = Math.sin(yaw);
+  const contour = [
+    [-5.8, -0.7], [-4.9, -2.5], [-3.1, -3.5], [-0.8, -3.8],
+    [1.5, -3.4], [3.8, -2.7], [5.4, -1.4], [5.9, 0.4],
+    [4.8, 2.1], [2.9, 3.1], [0.7, 3.5], [-1.8, 3.2],
+    [-4.2, 2.5], [-5.5, 1.1],
+  ];
+  const worldPoint = ([localX, localZ], factor = 1) => ({
+    x: center.x + localX * factor * cosYaw + localZ * factor * sinYaw,
+    z: center.y - localX * factor * sinYaw + localZ * factor * cosYaw,
   });
 
-  console.info('[Tamarind] Brejo dos moinhos carregado.', {
-    position: pond.position.toArray(),
-    rotationY: yaw,
-    scale: uniformScale,
-    target: target.toArray(),
-    supportHeights,
-    triangles: 3698,
+  const waterPositions = [];
+  const waterIndices = [];
+  const centerY = terrainHeightAt(terrain, center.x, center.y) + 0.045;
+  waterPositions.push(center.x, centerY, center.y);
+  contour.forEach((point) => {
+    const world = worldPoint(point, 0.87);
+    waterPositions.push(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.045, world.z);
+  });
+  for (let index = 0; index < contour.length; index += 1) {
+    waterIndices.push(0, index + 1, ((index + 1) % contour.length) + 1);
+  }
+  const waterGeometry = new THREE.BufferGeometry();
+  waterGeometry.setAttribute('position', new THREE.Float32BufferAttribute(waterPositions, 3));
+  waterGeometry.setIndex(waterIndices);
+  waterGeometry.computeVertexNormals();
+  const waterMaterial = new THREE.MeshPhysicalMaterial({
+    color: '#526f65',
+    roughness: 0.78,
+    metalness: 0,
+    clearcoat: 0.08,
+    clearcoatRoughness: 0.82,
+    transparent: true,
+    opacity: 0.56,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const water = new THREE.Mesh(waterGeometry, waterMaterial);
+  water.name = 'MillPondShallowWater';
+  water.renderOrder = 2;
+  pond.add(water);
+
+  const marginPositions = [];
+  const marginIndices = [];
+  contour.forEach((point) => {
+    for (const factor of [0.84, 1.08]) {
+      const world = worldPoint(point, factor);
+      marginPositions.push(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.022, world.z);
+    }
+  });
+  for (let index = 0; index < contour.length; index += 1) {
+    const next = (index + 1) % contour.length;
+    const inner = index * 2;
+    const outer = inner + 1;
+    const nextInner = next * 2;
+    const nextOuter = nextInner + 1;
+    marginIndices.push(inner, outer, nextInner, nextInner, outer, nextOuter);
+  }
+  const marginGeometry = new THREE.BufferGeometry();
+  marginGeometry.setAttribute('position', new THREE.Float32BufferAttribute(marginPositions, 3));
+  marginGeometry.setIndex(marginIndices);
+  marginGeometry.computeVertexNormals();
+  const margin = new THREE.Mesh(
+    marginGeometry,
+    new THREE.MeshStandardMaterial({
+      color: '#554f3d',
+      roughness: 1,
+      transparent: true,
+      opacity: 0.44,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+  );
+  margin.name = 'MillPondWetMargin';
+  margin.renderOrder = 1;
+  pond.add(margin);
+
+  const reedCount = 22;
+  const reedGeometry = new THREE.CylinderGeometry(0.035, 0.055, 1, 5);
+  const reedMaterial = new THREE.MeshStandardMaterial({ color: '#596640', roughness: 1 });
+  const reeds = new THREE.InstancedMesh(reedGeometry, reedMaterial, reedCount);
+  reeds.name = 'MillPondReeds';
+  const reedDummy = new THREE.Object3D();
+  for (let index = 0; index < reedCount; index += 1) {
+    const contourIndex = (index * 5) % contour.length;
+    const factor = 0.91 + ((index * 7) % 9) * 0.018;
+    const world = worldPoint(contour[contourIndex], factor);
+    const height = 0.48 + ((index * 11) % 8) * 0.065;
+    reedDummy.position.set(
+      world.x + Math.sin(index * 2.31) * 0.34,
+      terrainHeightAt(terrain, world.x, world.z) + height * 0.46,
+      world.z + Math.cos(index * 1.77) * 0.3,
+    );
+    reedDummy.rotation.set(Math.sin(index) * 0.05, index * 1.43, Math.cos(index * 0.7) * 0.045);
+    reedDummy.scale.set(0.82 + (index % 3) * 0.11, height, 0.82 + ((index + 1) % 3) * 0.1);
+    reedDummy.updateMatrix();
+    reeds.setMatrixAt(index, reedDummy.matrix);
+  }
+  reeds.instanceMatrix.needsUpdate = true;
+  reeds.castShadow = false;
+  reeds.receiveShadow = true;
+  pond.add(reeds);
+
+  pond.userData.update = (elapsed) => {
+    waterMaterial.opacity = 0.55 + Math.sin(elapsed * 0.42) * 0.018;
+  };
+  console.info('[Tamarind] Brejo procedural leve criado.', {
+    center: center.toArray(),
+    waterTriangles: contour.length,
+    marginTriangles: contour.length * 2,
+    reedInstances: reedCount,
   });
   return pond;
 }
@@ -2020,7 +2083,7 @@ export async function createWorld3d() {
       const windmills = await runWhenIdle(() => createWindmillPair(terrainGroup));
       addWorldAsset('windmills', windmills);
 
-      const millPond = await runWhenIdle(() => loadMillPond(terrainGroup));
+      const millPond = await runWhenIdle(() => createProceduralMillPond(terrainGroup));
       addWorldAsset('millPond', millPond);
 
       const goatAvoidObjects = [
@@ -2056,6 +2119,7 @@ export async function createWorld3d() {
       return {
         harbor,
         coast,
+        millPond,
         windmills,
         settlement,
         vegetation,

@@ -30,6 +30,7 @@ let bear = null;
 let activeScene = null;
 let water = null;
 let coast = null;
+let millPond = null;
 let landmarkTargets = null;
 let dayNightController = null;
 let nightTarget = 0;
@@ -342,6 +343,7 @@ async function initializeScene() {
       const waterShader = water?.material?.userData?.shader;
       if (waterShader?.uniforms?.uWaterTime) waterShader.uniforms.uWaterTime.value = elapsed;
       coast?.userData?.update?.(elapsed);
+      millPond?.userData?.update?.(elapsed);
       renderer.render(scene, camera);
       updateLandmarkNavigation();
 
@@ -362,6 +364,7 @@ async function initializeScene() {
     startSecondaryLoad({
       onAssetLoaded: ({ key, object }) => {
         if (key === 'coast') coast = object;
+        if (key === 'millPond') millPond = object;
         dayNightController.refresh();
         dayNightController.update(nightMix);
         refreshLandmarkAnchors();
