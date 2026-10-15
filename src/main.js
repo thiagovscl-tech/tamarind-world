@@ -388,4 +388,3 @@ const resizeObserver = new ResizeObserver(() => {
   if (initialized) renderer.render(activeScene, camera);
 });
 resizeObserver.observe(container);
-
