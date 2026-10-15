@@ -844,7 +844,7 @@ async function loadArchitectureHouse(terrain) {
   const bounds = new THREE.Box3().setFromObject(source);
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
-  const targetWidth = 16.5;
+  const targetWidth = 19;
   const uniformScale = targetWidth / Math.max(size.x, size.z, 0.0001);
   const target = new THREE.Vector3(10, 0, 33.5);
   const yaw = -1.05;
