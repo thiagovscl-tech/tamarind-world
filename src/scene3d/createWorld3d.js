@@ -6,7 +6,7 @@ THREE.Cache.enabled = true;
 
 const TERRAIN_URL = '/artwork/models/ilha_texturizada.web.glb';
 const TECNOMAGO_HOUSE_URL = '/artwork/models/casanovatecnomago.web.glb';
-const ARCHITECTURE_HOUSE_URL = '/artwork/models/bagan_temple_aerial_scan.glb';
+const ARCHITECTURE_HOUSE_URL = '/artwork/models/architecture_landmark.glb';
 const APPS_BASILICA_URL = '/artwork/models/basilica_texturizada.web.glb';
 const TREE_URL = '/artwork/models/arvore.web.glb';
 const TEMPLE_URL = '/artwork/models/templo.web.glb';
@@ -844,7 +844,7 @@ async function loadArchitectureHouse(terrain) {
   const bounds = new THREE.Box3().setFromObject(source);
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
-  const targetWidth = 19;
+  const targetWidth = 15.5;
   const uniformScale = targetWidth / Math.max(size.x, size.z, 0.0001);
   const target = new THREE.Vector3(10, 0, 33.5);
   const yaw = -1.05;
@@ -896,7 +896,7 @@ async function loadArchitectureHouse(terrain) {
     rotationY: yaw,
     scale: uniformScale,
     supportHeights,
-    triangles: 770098,
+    triangles: 498604,
   });
   return architectureGroup;
 }
