@@ -12,6 +12,7 @@ const TREE_URL = '/artwork/models/arvore.web.glb';
 const TEMPLE_URL = '/artwork/models/templo.web.glb';
 const SETTLEMENT_HOUSE_URL = '/artwork/models/casasite.web.glb';
 const BACKGROUND_CASTLE_URL = '/artwork/models/fantastic_castle.glb';
+const MILL_POND_URL = '/artwork/models/pond_with_waterfalls.glb';
 const RIGGED_GOAT_URL = '/artwork/models/bode_rigged.web.glb';
 const COAST_DATA_URL = '/artwork/data/coastline.web.json';
 const TARGET_HORIZONTAL_SIZE = 150;
@@ -1840,6 +1841,64 @@ function createWindmillPair(terrain) {
   return windmills;
 }
 
+async function loadMillPond(terrain) {
+  const source = (await loadGlbOnce(MILL_POND_URL, 'brejo dos moinhos')).scene;
+  source.updateMatrixWorld(true);
+
+  const bounds = new THREE.Box3().setFromObject(source);
+  const size = bounds.getSize(new THREE.Vector3());
+  const center = bounds.getCenter(new THREE.Vector3());
+  const targetWidth = 13;
+  const uniformScale = targetWidth / Math.max(size.x, size.z, 0.0001);
+  const target = new THREE.Vector3(-24, 0, -17);
+  const yaw = -0.22;
+  const halfBaseX = size.x * uniformScale * 0.43;
+  const halfBaseZ = size.z * uniformScale * 0.43;
+  const baseOffsets = [
+    [0, 0],
+    [-halfBaseX, 0], [halfBaseX, 0],
+    [0, -halfBaseZ], [0, halfBaseZ],
+    [-halfBaseX, -halfBaseZ], [halfBaseX, -halfBaseZ],
+    [-halfBaseX, halfBaseZ], [halfBaseX, halfBaseZ],
+  ];
+  const supportHeights = baseOffsets.map(([x, z]) => {
+    const offset = new THREE.Vector3(x, 0, z).applyAxisAngle(THREE.Object3D.DEFAULT_UP, yaw);
+    return terrainHeightAt(terrain, target.x + offset.x, target.z + offset.z);
+  }).sort((a, b) => a - b);
+  target.y = supportHeights[Math.floor(supportHeights.length * 0.55)];
+
+  const scaledCenter = center.clone().multiplyScalar(uniformScale);
+  scaledCenter.applyAxisAngle(THREE.Object3D.DEFAULT_UP, yaw);
+
+  const pond = new THREE.Group();
+  pond.name = 'MillPondGLB';
+  pond.scale.setScalar(uniformScale);
+  pond.rotation.y = yaw;
+  pond.position.set(
+    target.x - scaledCenter.x,
+    target.y - bounds.min.y * uniformScale - 0.1,
+    target.z - scaledCenter.z,
+  );
+  pond.add(source);
+
+  source.traverse((object) => {
+    if (!object.isMesh) return;
+    object.castShadow = false;
+    object.receiveShadow = true;
+    object.frustumCulled = true;
+  });
+
+  console.info('[Tamarind] Brejo dos moinhos carregado.', {
+    position: pond.position.toArray(),
+    rotationY: yaw,
+    scale: uniformScale,
+    target: target.toArray(),
+    supportHeights,
+    triangles: 3698,
+  });
+  return pond;
+}
+
 export async function createWorld3d() {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#aebdca');
@@ -1961,12 +2020,16 @@ export async function createWorld3d() {
       const windmills = await runWhenIdle(() => createWindmillPair(terrainGroup));
       addWorldAsset('windmills', windmills);
 
+      const millPond = await runWhenIdle(() => loadMillPond(terrainGroup));
+      addWorldAsset('millPond', millPond);
+
       const goatAvoidObjects = [
         tecnomagoHouse,
         architectureHouse,
         appsBasilica,
         pagoda,
         backgroundCastle,
+        millPond,
       ];
       settlement.traverse((object) => {
         if (object.name === 'DetailedSettlementHouse') goatAvoidObjects.push(object);
