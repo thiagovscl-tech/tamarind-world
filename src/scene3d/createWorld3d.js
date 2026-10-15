@@ -1083,7 +1083,21 @@ async function loadInstancedTrees(terrain, backgroundPlacements = []) {
   const dummy = new THREE.Object3D();
   source.traverse((object) => {
     if (!object.isMesh || placements.length === 0) return;
+    // The source GLB contains LOD0 and LOD1 in the same scene. Instancing both
+    // stacked the foliage versions and repeated the boxy rose-bush ground
+    // clusters at every tree placement. Keep the complete detailed tree only.
+    if (!object.name.includes('LOD0')) return;
     const geometry = object.geometry.clone();
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    const visibleGroups = geometry.groups.filter((group) => (
+      materials[group.materialIndex]?.name !== 'Rose Bush Leaves'
+    ));
+    if (geometry.groups.length > 0) {
+      geometry.clearGroups();
+      visibleGroups.forEach((group) => {
+        geometry.addGroup(group.start, group.count, group.materialIndex);
+      });
+    }
     geometry.applyMatrix4(object.matrixWorld);
     geometry.applyMatrix4(normalize);
     const instanced = new THREE.InstancedMesh(geometry, object.material, placements.length);
@@ -1106,6 +1120,7 @@ async function loadInstancedTrees(terrain, backgroundPlacements = []) {
   console.info('[Tamarind] Vegetação instanciada carregada.', {
     instances: placements.length,
     sourceMeshes: vegetation.children.length,
+    removedArtificialPatches: 'LOD1 + Rose Bush Leaves',
     targetHeight,
   });
   vegetation.userData.placements = placements.map(({ x, z }) => ({ x, z }));
