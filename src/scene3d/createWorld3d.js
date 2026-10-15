@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+THREE.Cache.enabled = true;
+
 const TERRAIN_URL = '/artwork/models/ilha_texturizada.glb';
 const TECNOMAGO_HOUSE_URL = '/artwork/models/observatorioTec_Texturizado.glb';
 const ARCHITECTURE_HOUSE_URL = '/artwork/models/arquiteturaColiseu_texturizado.glb';
@@ -12,9 +14,37 @@ const BACKGROUND_CASTLE_URL = '/artwork/models/casteloSite.glb';
 const RIGGED_GOAT_URL = '/artwork/models/bode_rigged.glb';
 const TARGET_HORIZONTAL_SIZE = 150;
 
+const gltfLoader = new GLTFLoader();
+const gltfRequests = new Map();
+
+function loadGlbOnce(url, label) {
+  if (!gltfRequests.has(url)) {
+    const timerLabel = `[Tamarind] GLB ${label}`;
+    console.time(timerLabel);
+    const request = gltfLoader.loadAsync(url)
+      .finally(() => console.timeEnd(timerLabel))
+      .catch((error) => {
+        gltfRequests.delete(url);
+        throw error;
+      });
+    gltfRequests.set(url, request);
+  }
+  return gltfRequests.get(url);
+}
+
+function runWhenIdle(task) {
+  return new Promise((resolve, reject) => {
+    const run = () => Promise.resolve().then(task).then(resolve, reject);
+    if ('requestIdleCallback' in window) {
+      window.requestIdleCallback(run, { timeout: 750 });
+    } else {
+      window.setTimeout(run, 0);
+    }
+  });
+}
+
 async function loadMasterTerrain() {
-  const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync(TERRAIN_URL);
+  const gltf = await loadGlbOnce(TERRAIN_URL, 'ilha/base');
   const source = gltf.scene;
   source.updateMatrixWorld(true);
 
@@ -86,7 +116,7 @@ function terrainSurfaceAt(terrain, x, z) {
 }
 
 async function loadRiggedGoat(terrain, { treePlacements = [], avoidObjects = [] } = {}) {
-  const gltf = await new GLTFLoader().loadAsync(RIGGED_GOAT_URL);
+  const gltf = await loadGlbOnce(RIGGED_GOAT_URL, 'bode');
   const source = gltf.scene;
   source.updateMatrixWorld(true);
 
@@ -664,8 +694,7 @@ function createCoastalTransition(terrain, worldBounds, oceanY) {
 }
 
 async function loadTecnomagoHouse(terrain) {
-  const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync(TECNOMAGO_HOUSE_URL);
+  const gltf = await loadGlbOnce(TECNOMAGO_HOUSE_URL, 'Casa do Tecnomago');
   const source = gltf.scene;
   source.updateMatrixWorld(true);
 
@@ -709,8 +738,7 @@ async function loadTecnomagoHouse(terrain) {
 }
 
 async function loadArchitectureHouse(terrain) {
-  const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync(ARCHITECTURE_HOUSE_URL);
+  const gltf = await loadGlbOnce(ARCHITECTURE_HOUSE_URL, 'Coliseu 3D/Arquitetura');
   const source = gltf.scene;
   source.updateMatrixWorld(true);
 
@@ -775,8 +803,7 @@ async function loadArchitectureHouse(terrain) {
 }
 
 async function loadAppsBasilica(terrain) {
-  const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync(APPS_BASILICA_URL);
+  const gltf = await loadGlbOnce(APPS_BASILICA_URL, 'Basílica Apps');
   const source = gltf.scene;
   source.updateMatrixWorld(true);
 
@@ -840,8 +867,7 @@ async function loadAppsBasilica(terrain) {
 }
 
 async function loadOrientalPagoda(terrain) {
-  const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync(TEMPLE_URL);
+  const gltf = await loadGlbOnce(TEMPLE_URL, 'templo oriental');
   const source = gltf.scene;
   source.updateMatrixWorld(true);
 
@@ -900,8 +926,7 @@ async function loadOrientalPagoda(terrain) {
 }
 
 async function loadInstancedTrees(terrain, backgroundPlacements = []) {
-  const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync(TREE_URL);
+  const gltf = await loadGlbOnce(TREE_URL, 'árvores');
   const source = gltf.scene;
   source.updateMatrixWorld(true);
 
@@ -1313,7 +1338,7 @@ function createSettlementHouse(template, x, y, z, yaw, scale) {
 async function createMedievalSettlement(terrain, oceanY) {
   const settlement = new THREE.Group();
   settlement.name = 'LightMedievalSettlement';
-  const houseSource = (await new GLTFLoader().loadAsync(SETTLEMENT_HOUSE_URL)).scene;
+  const houseSource = (await loadGlbOnce(SETTLEMENT_HOUSE_URL, 'casas da vila')).scene;
   houseSource.updateMatrixWorld(true);
   const houseBounds = new THREE.Box3().setFromObject(houseSource);
   const houseSize = houseBounds.getSize(new THREE.Vector3());
@@ -1517,7 +1542,7 @@ function findBackgroundCastleSite(terrain) {
 
 async function loadBackgroundCastle(terrain) {
   const site = findBackgroundCastleSite(terrain);
-  const source = (await new GLTFLoader().loadAsync(BACKGROUND_CASTLE_URL)).scene;
+  const source = (await loadGlbOnce(BACKGROUND_CASTLE_URL, 'castelo de fundo')).scene;
   source.updateMatrixWorld(true);
 
   const bounds = new THREE.Box3().setFromObject(source);
@@ -1711,24 +1736,7 @@ export async function createWorld3d() {
 
   const { terrainGroup, worldBounds, worldSize } = await loadMasterTerrain();
   world.add(terrainGroup);
-
-  const tecnomagoHouse = await loadTecnomagoHouse(terrainGroup);
-  world.add(tecnomagoHouse);
-
-  const architectureHouse = await loadArchitectureHouse(terrainGroup);
-  world.add(architectureHouse);
-
-  const appsBasilica = await loadAppsBasilica(terrainGroup);
-  world.add(appsBasilica);
-
-  const pagoda = await loadOrientalPagoda(terrainGroup);
-  world.add(pagoda);
-
-  const { castle: backgroundCastle, treePlacements: castleTreePlacements } = await loadBackgroundCastle(terrainGroup);
-  world.add(backgroundCastle);
-
-  const vegetation = await loadInstancedTrees(terrainGroup, castleTreePlacements);
-  world.add(vegetation);
+  const landmarks = {};
 
   const oceanMaterial = new THREE.MeshPhysicalMaterial({
     color: '#397f9c',
@@ -1769,51 +1777,99 @@ export async function createWorld3d() {
   ocean.receiveShadow = true;
   world.add(ocean);
 
-  const coast = createCoastalTransition(terrainGroup, worldBounds, ocean.position.y);
-  world.add(coast);
+  let secondaryLoadPromise = null;
+  const startSecondaryLoad = ({ onAssetLoaded } = {}) => {
+    if (secondaryLoadPromise) return secondaryLoadPromise;
 
-  const harbor = createHarbor(terrainGroup, ocean.position.y);
-  world.add(harbor);
+    secondaryLoadPromise = (async () => {
+      const notify = (key, object) => onAssetLoaded?.({ key, object, landmarks });
+      const addWorldAsset = (key, object) => {
+        world.add(object);
+        notify(key, object);
+        return object;
+      };
 
-  const settlement = await createMedievalSettlement(terrainGroup, ocean.position.y);
-  world.add(settlement);
+      const harbor = await runWhenIdle(() => createHarbor(terrainGroup, ocean.position.y));
+      addWorldAsset('harbor', harbor);
 
-  const windmills = createWindmillPair(terrainGroup);
-  world.add(windmills);
+      const windmills = await runWhenIdle(() => createWindmillPair(terrainGroup));
+      addWorldAsset('windmills', windmills);
 
-  const goatAvoidObjects = [
-    tecnomagoHouse,
-    architectureHouse,
-    appsBasilica,
-    pagoda,
-    backgroundCastle,
-  ];
-  settlement.traverse((object) => {
-    if (object.name === 'DetailedSettlementHouse') goatAvoidObjects.push(object);
-  });
-  windmills.traverse((object) => {
-    if (object.name === 'MedievalWindmillModel') goatAvoidObjects.push(object);
-  });
-  const { goat, updateGoatWalk } = await loadRiggedGoat(terrainGroup, {
-    treePlacements: vegetation.userData.placements,
-    avoidObjects: goatAvoidObjects,
-  });
-  world.add(goat);
+      const tecnomagoHouse = await runWhenIdle(() => loadTecnomagoHouse(terrainGroup));
+      landmarks.tecnomago = tecnomagoHouse;
+      addWorldAsset('tecnomago', tecnomagoHouse);
+
+      const appsBasilica = await runWhenIdle(() => loadAppsBasilica(terrainGroup));
+      landmarks.apps = appsBasilica;
+      addWorldAsset('apps', appsBasilica);
+
+      const architectureHouse = await runWhenIdle(() => loadArchitectureHouse(terrainGroup));
+      landmarks.architecture = architectureHouse;
+      addWorldAsset('architecture', architectureHouse);
+
+      const pagoda = await runWhenIdle(() => loadOrientalPagoda(terrainGroup));
+      addWorldAsset('pagoda', pagoda);
+
+      const castleResult = await runWhenIdle(() => loadBackgroundCastle(terrainGroup));
+      const backgroundCastle = addWorldAsset('castle', castleResult.castle);
+
+      const settlement = await runWhenIdle(() => createMedievalSettlement(terrainGroup, ocean.position.y));
+      addWorldAsset('settlement', settlement);
+
+      const vegetation = await runWhenIdle(() => (
+        loadInstancedTrees(terrainGroup, castleResult.treePlacements)
+      ));
+      addWorldAsset('vegetation', vegetation);
+
+      const goatAvoidObjects = [
+        tecnomagoHouse,
+        architectureHouse,
+        appsBasilica,
+        pagoda,
+        backgroundCastle,
+      ];
+      settlement.traverse((object) => {
+        if (object.name === 'DetailedSettlementHouse') goatAvoidObjects.push(object);
+      });
+      windmills.traverse((object) => {
+        if (object.name === 'MedievalWindmillModel') goatAvoidObjects.push(object);
+      });
+      const goatResult = await runWhenIdle(() => loadRiggedGoat(terrainGroup, {
+        treePlacements: vegetation.userData.placements,
+        avoidObjects: goatAvoidObjects,
+      }));
+      addWorldAsset('goat', goatResult.goat);
+
+      const coast = await runWhenIdle(() => (
+        createCoastalTransition(terrainGroup, worldBounds, ocean.position.y)
+      ));
+      addWorldAsset('coast', coast);
+
+      return {
+        harbor,
+        coast,
+        windmills,
+        settlement,
+        vegetation,
+        goat: goatResult.goat,
+        updateGoatWalk: goatResult.updateGoatWalk,
+        landmarks,
+      };
+    })();
+
+    return secondaryLoadPromise;
+  };
 
   return {
     scene,
     world,
     bear: null,
     water: ocean,
-    coast,
-    goat,
-    updateGoatWalk,
-    landmarks: {
-      tecnomago: tecnomagoHouse,
-      apps: appsBasilica,
-      architecture: architectureHouse,
-    },
+    coast: null,
+    landmarks,
+    startSecondaryLoad,
     cameraTarget: [0, worldSize.y * 0.2, 0],
     cameraPosition: [0, Math.max(82, worldSize.y * 3.8), 150],
   };
 }
+
