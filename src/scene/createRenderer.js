@@ -18,4 +18,3 @@ export function createRenderer(container) {
 
   return renderer;
 }
-
