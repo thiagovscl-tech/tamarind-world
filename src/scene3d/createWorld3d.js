@@ -1,20 +1,22 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 THREE.Cache.enabled = true;
 
-const TERRAIN_URL = '/artwork/models/ilha_texturizada.glb';
-const TECNOMAGO_HOUSE_URL = '/artwork/models/observatorioTec_Texturizado.glb';
-const ARCHITECTURE_HOUSE_URL = '/artwork/models/arquiteturaColiseu_texturizado.glb';
-const APPS_BASILICA_URL = '/artwork/models/basilica_texturizada.glb';
-const TREE_URL = '/artwork/models/arvore.glb';
-const TEMPLE_URL = '/artwork/models/templo.glb';
-const SETTLEMENT_HOUSE_URL = '/artwork/models/casasite.glb';
-const BACKGROUND_CASTLE_URL = '/artwork/models/casteloSite.glb';
-const RIGGED_GOAT_URL = '/artwork/models/bode_rigged.glb';
+const TERRAIN_URL = '/artwork/models/ilha_texturizada.web.glb';
+const TECNOMAGO_HOUSE_URL = '/artwork/models/casanovatecnomago.web.glb';
+const ARCHITECTURE_HOUSE_URL = '/artwork/models/arquiteturaColiseu_texturizado.web.glb';
+const APPS_BASILICA_URL = '/artwork/models/basilica_texturizada.web.glb';
+const TREE_URL = '/artwork/models/arvore.web.glb';
+const TEMPLE_URL = '/artwork/models/templo.web.glb';
+const SETTLEMENT_HOUSE_URL = '/artwork/models/casasite.web.glb';
+const BACKGROUND_CASTLE_URL = '/artwork/models/casteloSite.web.glb';
+const RIGGED_GOAT_URL = '/artwork/models/bode_rigged.web.glb';
+const COAST_DATA_URL = '/artwork/data/coastline.web.json';
 const TARGET_HORIZONTAL_SIZE = 150;
 
-const gltfLoader = new GLTFLoader();
+const gltfLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const gltfRequests = new Map();
 
 function loadGlbOnce(url, label) {
@@ -36,7 +38,7 @@ function runWhenIdle(task) {
   return new Promise((resolve, reject) => {
     const run = () => Promise.resolve().then(task).then(resolve, reject);
     if ('requestIdleCallback' in window) {
-      window.requestIdleCallback(run, { timeout: 750 });
+      window.requestIdleCallback(run, { timeout: 250 });
     } else {
       window.setTimeout(run, 0);
     }
@@ -548,18 +550,47 @@ function createTerrainCoastRibbon(name, terrain, center, radii, offsets, predica
   return mesh;
 }
 
-function createCoastalTransition(terrain, worldBounds, oceanY) {
+function createPrecomputedTerrainRibbon(name, data, material) {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(data.positions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(data.uvs, 2));
+  geometry.setIndex(data.indices);
+  geometry.computeVertexNormals();
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = name;
+  mesh.receiveShadow = true;
+  mesh.renderOrder = 1;
+  return mesh;
+}
+
+async function createCoastalTransition(terrain, worldBounds, oceanY) {
   const coast = new THREE.Group();
   coast.name = 'TamarindPainterlyCoast';
-  const center = worldBounds.getCenter(new THREE.Vector3());
+  let precomputed = null;
+  try {
+    const response = await fetch(COAST_DATA_URL);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    precomputed = await response.json();
+  } catch (error) {
+    console.warn('[Tamarind] Dados costeiros pré-calculados indisponíveis; usando fallback.', error);
+  }
+  const center = precomputed
+    ? new THREE.Vector3().fromArray(precomputed.center)
+    : worldBounds.getCenter(new THREE.Vector3());
   center.y = oceanY;
-  const radii = sampleTerrainOutline(terrain, center);
+  const radii = precomputed ? Float32Array.from(precomputed.radii) : sampleTerrainOutline(terrain, center);
   const foamInnerWidths = new Float32Array(radii.length);
   const foamOuterWidths = new Float32Array(radii.length);
   const foamStrengths = new Float32Array(radii.length);
   const shallowInnerWidths = new Float32Array(radii.length);
   const shallowOuterWidths = new Float32Array(radii.length);
-  for (let index = 0; index < radii.length; index += 1) {
+  if (precomputed) {
+    foamInnerWidths.set(precomputed.foamInner);
+    foamOuterWidths.set(precomputed.foamOuter);
+    foamStrengths.set(precomputed.foamStrength);
+    shallowInnerWidths.set(precomputed.shallowInner);
+    shallowOuterWidths.set(precomputed.shallowOuter);
+  } else for (let index = 0; index < radii.length; index += 1) {
     const angle = (index / radii.length) * Math.PI * 2;
     const sampleRadius = radii[index] - 2.2;
     const surface = terrainSurfaceAt(
@@ -665,24 +696,30 @@ function createCoastalTransition(terrain, worldBounds, oceanY) {
   foam.renderOrder = 3;
   coast.add(foam);
 
-  const beach = createTerrainCoastRibbon(
-    'TamarindGentleBeach', terrain, center, radii, { outer: 1.05, inner: 3.5 },
-    (slope, rise) => slope > 0.72 && rise < 2.6,
-    new THREE.MeshStandardMaterial({
-      color: '#c99d69', roughness: 0.92, metalness: 0, transparent: true, opacity: 0.72,
-      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
-    }),
-  );
+  const beachMaterial = new THREE.MeshStandardMaterial({
+    color: '#c99d69', roughness: 0.92, metalness: 0, transparent: true, opacity: 0.72,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  });
+  const beach = precomputed
+    ? createPrecomputedTerrainRibbon('TamarindGentleBeach', precomputed.beach, beachMaterial)
+    : createTerrainCoastRibbon(
+      'TamarindGentleBeach', terrain, center, radii, { outer: 1.05, inner: 3.5 },
+      (slope, rise) => slope > 0.72 && rise < 2.6,
+      beachMaterial,
+    );
   coast.add(beach);
 
-  const wetShore = createTerrainCoastRibbon(
-    'TamarindWetShore', terrain, center, radii, { outer: 0.25, inner: 1.2 },
-    (slope, rise) => slope > 0.52 && rise < 3.8,
-    new THREE.MeshStandardMaterial({
-      color: '#604b43', roughness: 0.68, metalness: 0.02, transparent: true, opacity: 0.58,
-      polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
-    }),
-  );
+  const wetShoreMaterial = new THREE.MeshStandardMaterial({
+    color: '#604b43', roughness: 0.68, metalness: 0.02, transparent: true, opacity: 0.58,
+    polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
+  });
+  const wetShore = precomputed
+    ? createPrecomputedTerrainRibbon('TamarindWetShore', precomputed.wetShore, wetShoreMaterial)
+    : createTerrainCoastRibbon(
+      'TamarindWetShore', terrain, center, radii, { outer: 0.25, inner: 1.2 },
+      (slope, rise) => slope > 0.52 && rise < 3.8,
+      wetShoreMaterial,
+    );
   coast.add(wetShore);
 
   coast.userData.update = (elapsed) => {
@@ -701,11 +738,30 @@ async function loadTecnomagoHouse(terrain) {
   const bounds = new THREE.Box3().setFromObject(source);
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
-  const targetWidth = 33;
+  const targetWidth = 19.490625;
   const uniformScale = targetWidth / Math.max(size.x, size.z, 0.0001);
-  const target = new THREE.Vector3(-45, 0, -3);
-  const yaw = 1.42;
-  target.y = terrainHeightAt(terrain, target.x, target.z);
+  const target = new THREE.Vector3(-38.5, 0, 4);
+  const yaw = -1.00;
+  const footprintX = size.x * uniformScale * 0.42;
+  const footprintZ = size.z * uniformScale * 0.42;
+  const cosYaw = Math.cos(yaw);
+  const sinYaw = Math.sin(yaw);
+  const supportHeights = [
+    [0, 0],
+    [footprintX, 0], [-footprintX, 0],
+    [0, footprintZ], [0, -footprintZ],
+    [footprintX, footprintZ], [footprintX, -footprintZ],
+    [-footprintX, footprintZ], [-footprintX, -footprintZ],
+    [footprintX * 0.5, footprintZ * 0.5],
+    [footprintX * 0.5, -footprintZ * 0.5],
+    [-footprintX * 0.5, footprintZ * 0.5],
+    [-footprintX * 0.5, -footprintZ * 0.5],
+  ].map(([localX, localZ]) => terrainHeightAt(
+    terrain,
+    target.x + localX * cosYaw + localZ * sinYaw,
+    target.z - localX * sinYaw + localZ * cosYaw,
+  )).sort((a, b) => a - b);
+  target.y = supportHeights[Math.floor((supportHeights.length - 1) * 0.75)];
 
   const scaledCenter = center.clone().multiplyScalar(uniformScale);
   scaledCenter.applyAxisAngle(THREE.Object3D.DEFAULT_UP, yaw);
@@ -716,7 +772,7 @@ async function loadTecnomagoHouse(terrain) {
   houseGroup.rotation.y = yaw;
   houseGroup.position.set(
     target.x - scaledCenter.x,
-    target.y - bounds.min.y * uniformScale - 0.32,
+    target.y - bounds.min.y * uniformScale + 0.02,
     target.z - scaledCenter.z,
   );
   houseGroup.add(source);
@@ -727,6 +783,32 @@ async function loadTecnomagoHouse(terrain) {
     object.receiveShadow = true;
     object.frustumCulled = true;
   });
+
+  const accessGroup = new THREE.Group();
+  accessGroup.name = 'TecnomagoEntranceAccess';
+  const entranceDirection = new THREE.Vector2(Math.cos(yaw), -Math.sin(yaw));
+  const accessYaw = Math.atan2(entranceDirection.x, entranceDirection.y);
+  const stepGeometry = new THREE.BoxGeometry(1.75, 0.16, 0.82);
+  const stepMaterial = new THREE.MeshStandardMaterial({
+    color: '#755b45',
+    roughness: 0.96,
+    metalness: 0,
+  });
+  for (let index = 0; index < 4; index += 1) {
+    const distance = 10.4 + index * 1.25;
+    const x = target.x + entranceDirection.x * distance;
+    const z = target.z + entranceDirection.y * distance;
+    const surface = terrainSurfaceAt(terrain, x, z);
+    if (!surface) continue;
+    const step = new THREE.Mesh(stepGeometry, stepMaterial);
+    step.name = `TecnomagoEntranceStep_${index + 1}`;
+    step.position.set(x, surface.point.y + 0.03, z);
+    step.rotation.y = accessYaw;
+    step.castShadow = false;
+    step.receiveShadow = true;
+    accessGroup.add(step);
+  }
+  houseGroup.userData.entranceAccess = accessGroup;
 
   console.info('[Tamarind] Casa do Tecnomago carregada.', {
     position: houseGroup.position.toArray(),
@@ -1789,15 +1871,13 @@ export async function createWorld3d() {
         return object;
       };
 
-      const harbor = await runWhenIdle(() => createHarbor(terrainGroup, ocean.position.y));
-      addWorldAsset('harbor', harbor);
-
-      const windmills = await runWhenIdle(() => createWindmillPair(terrainGroup));
-      addWorldAsset('windmills', windmills);
-
+      console.time('[Tamarind] fase 2 — landmarks principais');
       const tecnomagoHouse = await runWhenIdle(() => loadTecnomagoHouse(terrainGroup));
       landmarks.tecnomago = tecnomagoHouse;
       addWorldAsset('tecnomago', tecnomagoHouse);
+      if (tecnomagoHouse.userData.entranceAccess) {
+        world.add(tecnomagoHouse.userData.entranceAccess);
+      }
 
       const appsBasilica = await runWhenIdle(() => loadAppsBasilica(terrainGroup));
       landmarks.apps = appsBasilica;
@@ -1806,7 +1886,9 @@ export async function createWorld3d() {
       const architectureHouse = await runWhenIdle(() => loadArchitectureHouse(terrainGroup));
       landmarks.architecture = architectureHouse;
       addWorldAsset('architecture', architectureHouse);
+      console.timeEnd('[Tamarind] fase 2 — landmarks principais');
 
+      console.time('[Tamarind] fase 3 — mundo habitado');
       const pagoda = await runWhenIdle(() => loadOrientalPagoda(terrainGroup));
       addWorldAsset('pagoda', pagoda);
 
@@ -1820,6 +1902,9 @@ export async function createWorld3d() {
         loadInstancedTrees(terrainGroup, castleResult.treePlacements)
       ));
       addWorldAsset('vegetation', vegetation);
+
+      const windmills = await runWhenIdle(() => createWindmillPair(terrainGroup));
+      addWorldAsset('windmills', windmills);
 
       const goatAvoidObjects = [
         tecnomagoHouse,
@@ -1839,11 +1924,16 @@ export async function createWorld3d() {
         avoidObjects: goatAvoidObjects,
       }));
       addWorldAsset('goat', goatResult.goat);
+      console.timeEnd('[Tamarind] fase 3 — mundo habitado');
 
+      console.time('[Tamarind] fase 4 — acabamento costeiro');
+      const harbor = await runWhenIdle(() => createHarbor(terrainGroup, ocean.position.y));
+      addWorldAsset('harbor', harbor);
       const coast = await runWhenIdle(() => (
         createCoastalTransition(terrainGroup, worldBounds, ocean.position.y)
       ));
       addWorldAsset('coast', coast);
+      console.timeEnd('[Tamarind] fase 4 — acabamento costeiro');
 
       return {
         harbor,

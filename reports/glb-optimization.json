@@ -1,0 +1,86 @@
+[
+  {
+    "input": "ilha_texturizada.glb",
+    "output": "ilha_texturizada.web.glb",
+    "textureSize": 512,
+    "before": 8201908,
+    "after": 1458976,
+    "reduction": 6742932,
+    "reductionPercent": 82.21174877845496
+  },
+  {
+    "input": "casanovatecnomago.glb",
+    "output": "casanovatecnomago.web.glb",
+    "textureSize": 1024,
+    "before": 4189632,
+    "after": 874344,
+    "reduction": 3315288,
+    "reductionPercent": 79.1307685257321
+  },
+  {
+    "input": "basilica_texturizada.glb",
+    "output": "basilica_texturizada.web.glb",
+    "textureSize": 512,
+    "before": 25784048,
+    "after": 5032240,
+    "reduction": 20751808,
+    "reductionPercent": 80.48312662154522
+  },
+  {
+    "input": "arquiteturaColiseu_texturizado.glb",
+    "output": "arquiteturaColiseu_texturizado.web.glb",
+    "textureSize": 512,
+    "before": 21312576,
+    "after": 4212348,
+    "reduction": 17100228,
+    "reductionPercent": 80.23538778231219
+  },
+  {
+    "input": "casteloSite.glb",
+    "output": "casteloSite.web.glb",
+    "textureSize": 1024,
+    "simplifyRatio": 0.55,
+    "before": 152911500,
+    "after": 11053180,
+    "reduction": 141858320,
+    "reductionPercent": 92.77151816573638
+  },
+  {
+    "input": "templo.glb",
+    "output": "templo.web.glb",
+    "textureSize": 1024,
+    "before": 52210704,
+    "after": 7239600,
+    "reduction": 44971104,
+    "reductionPercent": 86.13387783470607
+  },
+  {
+    "input": "casasite.glb",
+    "output": "casasite.web.glb",
+    "textureSize": 1024,
+    "before": 52842672,
+    "after": 3822964,
+    "reduction": 49019708,
+    "reductionPercent": 92.76538476328373
+  },
+  {
+    "input": "arvore.glb",
+    "output": "arvore.web.glb",
+    "textureSize": 1024,
+    "simplifyRatio": 0.35,
+    "before": 98807512,
+    "after": 16248820,
+    "reduction": 82558692,
+    "reductionPercent": 83.5550762577647
+  },
+  {
+    "input": "bode_rigged.glb",
+    "output": "bode_rigged.web.glb",
+    "textureSize": 1024,
+    "preserveAnimation": true,
+    "before": 2269172,
+    "after": 478104,
+    "reduction": 1791068,
+    "reductionPercent": 78.93046450423327
+  }
+]

@@ -1,0 +1,771 @@
+[
+  {
+    "name": "arquiteturaColiseu_texturizado.web.glb",
+    "active": true,
+    "bytes": 4212348,
+    "size": "4.02 MB",
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 770098,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 47782
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 30564
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "EXT_meshopt_compression",
+      "EXT_texture_webp",
+      "KHR_mesh_quantization"
+    ],
+    "compressionCandidate": false
+  },
+  {
+    "name": "arvore.web.glb",
+    "active": true,
+    "bytes": 16248820,
+    "size": "15.50 MB",
+    "meshes": 3,
+    "primitives": 5,
+    "triangles": 994431,
+    "materials": 3,
+    "textures": [
+      {
+        "name": "island_tree_02_branches_nor_gl_1k",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 152662
+      },
+      {
+        "name": "island_tree_02_branches_diff_1k",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 89544
+      },
+      {
+        "name": "Image",
+        "mimeType": "image/webp",
+        "width": 1,
+        "height": 1,
+        "bytes": 44
+      },
+      {
+        "name": "plant-8_normal",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 76826
+      },
+      {
+        "name": "plant-8",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 180008
+      },
+      {
+        "name": "plant-8",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 148270
+      },
+      {
+        "name": "leaves-2_normal",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 67670
+      },
+      {
+        "name": "leaves-2_diffuse",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 129668
+      },
+      {
+        "name": "leaves-2_roughness",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 136272
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "EXT_meshopt_compression",
+      "EXT_texture_webp",
+      "KHR_materials_specular",
+      "KHR_mesh_quantization"
+    ],
+    "compressionCandidate": false
+  },
+  {
+    "name": "basilica_texturizada.web.glb",
+    "active": true,
+    "bytes": 5032240,
+    "size": "4.80 MB",
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 948264,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 71744
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 47496
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "EXT_meshopt_compression",
+      "EXT_texture_webp",
+      "KHR_mesh_quantization"
+    ],
+    "compressionCandidate": false
+  },
+  {
+    "name": "bode_rigged.web.glb",
+    "active": true,
+    "bytes": 478104,
+    "size": "0.46 MB",
+    "meshes": 3,
+    "primitives": 5,
+    "triangles": 17074,
+    "materials": 3,
+    "textures": [
+      {
+        "name": "Bighorn_normalmap",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 31716
+      },
+      {
+        "name": "Boghorn_texture",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 39730
+      },
+      {
+        "name": "Bighorn_roughness",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 26008
+      },
+      {
+        "name": "Eyes_specular",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1926
+      },
+      {
+        "name": "Eyes_texture",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 10746
+      },
+      {
+        "name": "Eyes_roughness",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1950
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 1,
+    "skins": 1,
+    "bones": 275,
+    "extensions": [
+      "EXT_meshopt_compression",
+      "EXT_texture_webp",
+      "KHR_materials_specular",
+      "KHR_mesh_quantization"
+    ],
+    "compressionCandidate": false
+  },
+  {
+    "name": "casanovatecnomago.web.glb",
+    "active": true,
+    "bytes": 874344,
+    "size": "0.83 MB",
+    "meshes": 48,
+    "primitives": 48,
+    "triangles": 30994,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "Image_2",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 4332
+      },
+      {
+        "name": "Image_3",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 94280
+      },
+      {
+        "name": "Image_1",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 116932
+      },
+      {
+        "name": "Image_0",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 100904
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "EXT_meshopt_compression",
+      "EXT_texture_webp",
+      "KHR_mesh_quantization"
+    ],
+    "compressionCandidate": false
+  },
+  {
+    "name": "casasite.web.glb",
+    "active": true,
+    "bytes": 3822964,
+    "size": "3.65 MB",
+    "meshes": 26,
+    "primitives": 69,
+    "triangles": 25958,
+    "materials": 10,
+    "textures": [
+      {
+        "name": "beams norms",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 49798
+      },
+      {
+        "name": "beams Color",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 126762
+      },
+      {
+        "name": "beams cav",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 87416
+      },
+      {
+        "name": "antique-grate1-normal-ogl",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 83306
+      },
+      {
+        "name": "antique-grate1-albedo",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 32112
+      },
+      {
+        "name": "antique-grate1-metallic-antique-grate1-roughness",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 129004
+      },
+      {
+        "name": "rock_08_diff_2k",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 261992
+      },
+      {
+        "name": "rock_08_diff_2k",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 198348
+      },
+      {
+        "name": "limestone3_Normal-ogl",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 277888
+      },
+      {
+        "name": "limestone3_Base_Color",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 256708
+      },
+      {
+        "name": "limestone3_Roughness",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 20248
+      },
+      {
+        "name": "limestonemarked2-normal-ogl",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 252406
+      },
+      {
+        "name": "limestonemarked2-albedo",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 188036
+      },
+      {
+        "name": "limestonemarked2-rough",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 23822
+      },
+      {
+        "name": "fiberous_plaster_Normal-ogl",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 388446
+      },
+      {
+        "name": "fiberous_plaster_albedo",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 118240
+      },
+      {
+        "name": "fiberous_plaster_Roughness",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 186976
+      },
+      {
+        "name": "window light",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 6060
+      },
+      {
+        "name": "Old_Window_-_Scortsite",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 680,
+        "bytes": 198690
+      },
+      {
+        "name": "Old_Window_-_Scortsite",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 680,
+        "bytes": 169008
+      },
+      {
+        "name": "medieval_door_02",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 576,
+        "bytes": 27704
+      },
+      {
+        "name": "medieval_door_02",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 576,
+        "bytes": 20322
+      },
+      {
+        "name": "old-clay-roof-tiles_normal_2k",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 45366
+      },
+      {
+        "name": "old-clay-roof-tiles_base_2k",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 211672
+      },
+      {
+        "name": "old-clay-roof-tiles_rough_2k",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 195886
+      }
+    ],
+    "duplicateMeshes": 1,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "EXT_meshopt_compression",
+      "EXT_texture_webp",
+      "KHR_materials_emissive_strength",
+      "KHR_mesh_quantization",
+      "KHR_texture_transform"
+    ],
+    "compressionCandidate": false
+  },
+  {
+    "name": "casteloSite.web.glb",
+    "active": true,
+    "bytes": 11053180,
+    "size": "10.54 MB",
+    "meshes": 18,
+    "primitives": 31,
+    "triangles": 1142766,
+    "materials": 9,
+    "textures": [
+      {
+        "name": "bq_Moss_Diffuse",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 293062
+      },
+      {
+        "name": "japanese_stone_wall_nor_gl_8k",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 265286
+      },
+      {
+        "name": "japanese_stone_wall_diff_1k",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 327176
+      },
+      {
+        "name": "japanese_stone_wall_rough_8k",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 40036
+      },
+      {
+        "name": "Doors Windows_Normal",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 87492
+      },
+      {
+        "name": "Doors Windows_BaseColor",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 111726
+      },
+      {
+        "name": "Doors Windows_Metallic-Doors Windows_Roughness",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 138592
+      },
+      {
+        "name": "rivetted-metal-1_bump",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 11516
+      },
+      {
+        "name": "rivetted-metal-1_diffuse",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 271140
+      },
+      {
+        "name": "rivetted-metal-1_metal-rivetted-metal-1_smooth",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 168022
+      },
+      {
+        "name": "concrete_floor_worn_001_nor_gl_16k",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 36190
+      },
+      {
+        "name": "concrete_floor_worn_001_diff_1k",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 41410
+      },
+      {
+        "name": "concrete_floor_worn_001_rough_1k",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 58100
+      },
+      {
+        "name": "clay_roof_tiles_02_nor_gl.png",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 192644
+      },
+      {
+        "name": "clay_roof_tiles_02_diff_1k",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 161418
+      },
+      {
+        "name": "clay_roof_tiles_02_rough.png",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 14844
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "EXT_meshopt_compression",
+      "EXT_texture_webp",
+      "KHR_materials_ior",
+      "KHR_materials_specular",
+      "KHR_mesh_quantization",
+      "KHR_texture_transform"
+    ],
+    "compressionCandidate": false
+  },
+  {
+    "name": "ilha_texturizada.web.glb",
+    "active": true,
+    "bytes": 1458976,
+    "size": "1.39 MB",
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 266236,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 35724
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 16694
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "EXT_meshopt_compression",
+      "EXT_texture_webp",
+      "KHR_mesh_quantization"
+    ],
+    "compressionCandidate": false
+  },
+  {
+    "name": "templo.web.glb",
+    "active": true,
+    "bytes": 7239600,
+    "size": "6.90 MB",
+    "meshes": 1,
+    "primitives": 4,
+    "triangles": 519281,
+    "materials": 4,
+    "textures": [
+      {
+        "name": "tye_4_Normal",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 122024
+      },
+      {
+        "name": "tye_4_BaseColor",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 125046
+      },
+      {
+        "name": "tye_4_Roughness",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 185634
+      },
+      {
+        "name": "tye_3_Normal",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 195254
+      },
+      {
+        "name": "tye_3_BaseColor",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 77206
+      },
+      {
+        "name": "tye_3_Metallic-tye_3_Roughness",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 41548
+      },
+      {
+        "name": "tye_2_Normal",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 61048
+      },
+      {
+        "name": "tye_2_BaseColor",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 248400
+      },
+      {
+        "name": "tye_2_Roughness",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 116464
+      },
+      {
+        "name": "tye_1_Normal",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 257578
+      },
+      {
+        "name": "tye_1_BaseColor",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 121956
+      },
+      {
+        "name": "tye_1_Roughness",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 228362
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "EXT_meshopt_compression",
+      "EXT_texture_webp",
+      "KHR_mesh_quantization"
+    ],
+    "compressionCandidate": false
+  }
+]

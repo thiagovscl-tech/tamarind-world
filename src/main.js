@@ -7,6 +7,8 @@ import { updateBearProcedural } from './scene3d/createBearCharacter3d.js';
 
 console.time('[Tamarind] tempo até first render');
 console.time('[Tamarind] tempo até mundo completo');
+const tamarindMetrics = { startedAt: performance.now() };
+window.__tamarindMetrics = tamarindMetrics;
 
 const container = document.querySelector('#scene');
 const status = document.querySelector('#scene-status');
@@ -293,7 +295,11 @@ async function initializeScene() {
           const objectBounds = new THREE.Box3().setFromObject(object);
           const objectSize = objectBounds.getSize(new THREE.Vector3());
           objectBounds.getCenter(landmarkWorldPosition);
-          const anchorGap = THREE.MathUtils.clamp(objectSize.y * 0.08, 1.4, 2.8);
+          const anchorGap = key === 'tecnomago'
+            ? THREE.MathUtils.clamp(objectSize.y * 0.11, 2.8, 4.2)
+            : key === 'architecture'
+              ? THREE.MathUtils.clamp(objectSize.y * 0.14, 2.2, 3.4)
+              : THREE.MathUtils.clamp(objectSize.y * 0.09, 1.8, 3.2);
           landmarkWorldPosition.y = objectBounds.max.y + anchorGap;
           return [key, landmarkWorldPosition.clone()];
         }),
@@ -304,6 +310,7 @@ async function initializeScene() {
     if (cameraPosition) camera.position.set(...cameraPosition);
     camera.lookAt(camera.userData.baseTarget);
     renderer.render(scene, camera);
+    tamarindMetrics.firstRenderMs = performance.now() - tamarindMetrics.startedAt;
     console.timeEnd('[Tamarind] tempo até first render');
     status.remove();
     const clock = new THREE.Clock();
@@ -365,6 +372,16 @@ async function initializeScene() {
       dayNightController.refresh();
       dayNightController.update(nightMix);
       refreshLandmarkAnchors();
+      const resources = performance.getEntriesByType('resource');
+      const glbResources = resources.filter((entry) => entry.name.includes('.glb'));
+      tamarindMetrics.worldCompleteMs = performance.now() - tamarindMetrics.startedAt;
+      tamarindMetrics.requestCount = resources.length;
+      tamarindMetrics.glbRequestCount = glbResources.length;
+      tamarindMetrics.totalTransferBytes = resources.reduce(
+        (total, entry) => total + (entry.transferSize || entry.encodedBodySize || 0),
+        0,
+      );
+      console.info('[Tamarind] Métricas de carregamento.', JSON.stringify(tamarindMetrics));
       console.timeEnd('[Tamarind] tempo até mundo completo');
     }).catch((error) => {
       console.error('Falha ao carregar assets secundários do mundo Tamarind.', error);
