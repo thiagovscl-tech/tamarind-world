@@ -6,7 +6,7 @@ THREE.Cache.enabled = true;
 
 const TERRAIN_URL = '/artwork/models/ilha_texturizada.web.glb';
 const TECNOMAGO_HOUSE_URL = '/artwork/models/casanovatecnomago.web.glb';
-const ARCHITECTURE_HOUSE_URL = '/artwork/models/arquiteturaColiseu_texturizado.web.glb';
+const ARCHITECTURE_HOUSE_URL = '/artwork/models/bagan_temple_aerial_scan.glb';
 const APPS_BASILICA_URL = '/artwork/models/basilica_texturizada.web.glb';
 const TREE_URL = '/artwork/models/arvore.web.glb';
 const TEMPLE_URL = '/artwork/models/templo.web.glb';
