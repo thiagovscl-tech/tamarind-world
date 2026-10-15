@@ -1685,7 +1685,7 @@ async function loadBackgroundCastle(terrain) {
   const bounds = new THREE.Box3().setFromObject(source);
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
-  const targetWidth = 16;
+  const targetWidth = 20;
   const uniformScale = targetWidth / Math.max(size.x, size.z, 0.0001);
   const yaw = 0.06;
   const halfBaseX = size.x * uniformScale * 0.42;
