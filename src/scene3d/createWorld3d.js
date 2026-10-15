@@ -1848,51 +1848,79 @@ function createProceduralMillPond(terrain) {
   const cosYaw = Math.cos(yaw);
   const sinYaw = Math.sin(yaw);
   const contour = [
-    [-5.8, -0.7], [-4.9, -2.5], [-3.1, -3.5], [-0.8, -3.8],
-    [1.5, -3.4], [3.8, -2.7], [5.4, -1.4], [5.9, 0.4],
-    [4.8, 2.1], [2.9, 3.1], [0.7, 3.5], [-1.8, 3.2],
-    [-4.2, 2.5], [-5.5, 1.1],
+    [-7.6, -0.8], [-6.7, -3.2], [-4.4, -4.7], [-1.2, -5.15],
+    [2.0, -4.65], [5.0, -3.55], [7.15, -1.85], [7.7, 0.55],
+    [6.25, 2.85], [3.8, 4.15], [0.9, 4.75], [-2.35, 4.35],
+    [-5.45, 3.25], [-7.15, 1.45],
   ];
   const worldPoint = ([localX, localZ], factor = 1) => ({
     x: center.x + localX * factor * cosYaw + localZ * factor * sinYaw,
     z: center.y - localX * factor * sinYaw + localZ * factor * cosYaw,
   });
+  const createFanGeometry = (factor, lift) => {
+    const positions = [center.x, terrainHeightAt(terrain, center.x, center.y) + lift, center.y];
+    const indices = [];
+    contour.forEach((point) => {
+      const world = worldPoint(point, factor);
+      positions.push(world.x, terrainHeightAt(terrain, world.x, world.z) + lift, world.z);
+    });
+    for (let index = 0; index < contour.length; index += 1) {
+      indices.push(0, index + 1, ((index + 1) % contour.length) + 1);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    return geometry;
+  };
 
-  const waterPositions = [];
-  const waterIndices = [];
-  const centerY = terrainHeightAt(terrain, center.x, center.y) + 0.045;
-  waterPositions.push(center.x, centerY, center.y);
-  contour.forEach((point) => {
-    const world = worldPoint(point, 0.87);
-    waterPositions.push(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.045, world.z);
-  });
-  for (let index = 0; index < contour.length; index += 1) {
-    waterIndices.push(0, index + 1, ((index + 1) % contour.length) + 1);
-  }
-  const waterGeometry = new THREE.BufferGeometry();
-  waterGeometry.setAttribute('position', new THREE.Float32BufferAttribute(waterPositions, 3));
-  waterGeometry.setIndex(waterIndices);
-  waterGeometry.computeVertexNormals();
   const waterMaterial = new THREE.MeshPhysicalMaterial({
-    color: '#526f65',
-    roughness: 0.78,
+    color: '#3f746d',
+    roughness: 0.68,
     metalness: 0,
-    clearcoat: 0.08,
-    clearcoatRoughness: 0.82,
+    clearcoat: 0.13,
+    clearcoatRoughness: 0.72,
     transparent: true,
-    opacity: 0.56,
+    opacity: 0.74,
     depthWrite: false,
     side: THREE.DoubleSide,
   });
-  const water = new THREE.Mesh(waterGeometry, waterMaterial);
+  waterMaterial.onBeforeCompile = (shader) => {
+    shader.uniforms.uPondTime = { value: 0 };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uPondTime;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        transformed.y += (
+          sin(position.x * 1.35 + uPondTime * 0.48)
+          + cos(position.z * 1.12 - uPondTime * 0.37)
+        ) * 0.014;`);
+    waterMaterial.userData.shader = shader;
+  };
+  const water = new THREE.Mesh(createFanGeometry(0.95, 0.052), waterMaterial);
   water.name = 'MillPondShallowWater';
   water.renderOrder = 2;
   pond.add(water);
 
+  const deepWater = new THREE.Mesh(
+    createFanGeometry(0.58, 0.058),
+    new THREE.MeshStandardMaterial({
+      color: '#274f4c',
+      roughness: 0.76,
+      transparent: true,
+      opacity: 0.34,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+  );
+  deepWater.name = 'MillPondDeepCenter';
+  deepWater.renderOrder = 3;
+  pond.add(deepWater);
+
   const marginPositions = [];
   const marginIndices = [];
-  contour.forEach((point) => {
-    for (const factor of [0.84, 1.08]) {
+  contour.forEach((point, index) => {
+    const widthVariation = 0.035 + ((index * 5) % 7) * 0.014;
+    for (const factor of [0.91 - widthVariation * 0.35, 1.08 + widthVariation]) {
       const world = worldPoint(point, factor);
       marginPositions.push(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.022, world.z);
     }
@@ -1912,10 +1940,10 @@ function createProceduralMillPond(terrain) {
   const margin = new THREE.Mesh(
     marginGeometry,
     new THREE.MeshStandardMaterial({
-      color: '#554f3d',
+      color: '#4b4233',
       roughness: 1,
       transparent: true,
-      opacity: 0.44,
+      opacity: 0.68,
       depthWrite: false,
       side: THREE.DoubleSide,
     }),
@@ -1924,21 +1952,27 @@ function createProceduralMillPond(terrain) {
   margin.renderOrder = 1;
   pond.add(margin);
 
-  const reedCount = 22;
+  const reedCount = 84;
   const reedGeometry = new THREE.CylinderGeometry(0.035, 0.055, 1, 5);
-  const reedMaterial = new THREE.MeshStandardMaterial({ color: '#596640', roughness: 1 });
+  const reedMaterial = new THREE.MeshStandardMaterial({ color: '#58663b', roughness: 1 });
   const reeds = new THREE.InstancedMesh(reedGeometry, reedMaterial, reedCount);
   reeds.name = 'MillPondReeds';
   const reedDummy = new THREE.Object3D();
   for (let index = 0; index < reedCount; index += 1) {
-    const contourIndex = (index * 5) % contour.length;
-    const factor = 0.91 + ((index * 7) % 9) * 0.018;
-    const world = worldPoint(contour[contourIndex], factor);
-    const height = 0.48 + ((index * 11) % 8) * 0.065;
+    const contourIndex = Math.floor(index * 0.61803398875 * contour.length) % contour.length;
+    const nextIndex = (contourIndex + 1) % contour.length;
+    const mix = (index * 0.381966) % 1;
+    const localPoint = [
+      THREE.MathUtils.lerp(contour[contourIndex][0], contour[nextIndex][0], mix),
+      THREE.MathUtils.lerp(contour[contourIndex][1], contour[nextIndex][1], mix),
+    ];
+    const factor = 0.9 + ((index * 7) % 11) * 0.021;
+    const world = worldPoint(localPoint, factor);
+    const height = 0.52 + ((index * 11) % 10) * 0.07;
     reedDummy.position.set(
-      world.x + Math.sin(index * 2.31) * 0.34,
+      world.x + Math.sin(index * 2.31) * 0.42,
       terrainHeightAt(terrain, world.x, world.z) + height * 0.46,
-      world.z + Math.cos(index * 1.77) * 0.3,
+      world.z + Math.cos(index * 1.77) * 0.38,
     );
     reedDummy.rotation.set(Math.sin(index) * 0.05, index * 1.43, Math.cos(index * 0.7) * 0.045);
     reedDummy.scale.set(0.82 + (index % 3) * 0.11, height, 0.82 + ((index + 1) % 3) * 0.1);
@@ -1950,14 +1984,84 @@ function createProceduralMillPond(terrain) {
   reeds.receiveShadow = true;
   pond.add(reeds);
 
+  const stoneCount = 24;
+  const stones = new THREE.InstancedMesh(
+    new THREE.IcosahedronGeometry(0.32, 0),
+    new THREE.MeshStandardMaterial({ color: '#524e45', roughness: 1 }),
+    stoneCount,
+  );
+  stones.name = 'MillPondMarginStones';
+  for (let index = 0; index < stoneCount; index += 1) {
+    const contourIndex = (index * 5 + 2) % contour.length;
+    const factor = 1.01 + ((index * 3) % 7) * 0.022;
+    const world = worldPoint(contour[contourIndex], factor);
+    reedDummy.position.set(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.12, world.z);
+    reedDummy.rotation.set(index * 0.17, index * 1.21, index * 0.09);
+    reedDummy.scale.set(0.75 + (index % 4) * 0.13, 0.45 + (index % 3) * 0.1, 0.8 + ((index + 2) % 4) * 0.11);
+    reedDummy.updateMatrix();
+    stones.setMatrixAt(index, reedDummy.matrix);
+  }
+  stones.instanceMatrix.needsUpdate = true;
+  stones.castShadow = false;
+  stones.receiveShadow = true;
+  pond.add(stones);
+
+  const leafCount = 16;
+  const floatingLeaves = new THREE.InstancedMesh(
+    new THREE.CircleGeometry(0.24, 8),
+    new THREE.MeshStandardMaterial({ color: '#4d693f', roughness: 0.9, side: THREE.DoubleSide }),
+    leafCount,
+  );
+  floatingLeaves.name = 'MillPondFloatingLeaves';
+  for (let index = 0; index < leafCount; index += 1) {
+    const point = contour[(index * 3) % contour.length];
+    const factor = 0.24 + ((index * 5) % 9) * 0.055;
+    const world = worldPoint(point, factor);
+    reedDummy.position.set(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.078, world.z);
+    reedDummy.rotation.set(-Math.PI / 2, 0, index * 1.17);
+    reedDummy.scale.setScalar(0.7 + (index % 5) * 0.12);
+    reedDummy.updateMatrix();
+    floatingLeaves.setMatrixAt(index, reedDummy.matrix);
+  }
+  floatingLeaves.instanceMatrix.needsUpdate = true;
+  floatingLeaves.castShadow = false;
+  floatingLeaves.receiveShadow = true;
+  pond.add(floatingLeaves);
+
+  const branchCount = 5;
+  const branches = new THREE.InstancedMesh(
+    new THREE.CylinderGeometry(0.055, 0.075, 1.4, 6),
+    new THREE.MeshStandardMaterial({ color: '#49382b', roughness: 1 }),
+    branchCount,
+  );
+  branches.name = 'MillPondDriftwood';
+  for (let index = 0; index < branchCount; index += 1) {
+    const point = contour[(index * 4 + 1) % contour.length];
+    const world = worldPoint(point, 0.72 + index * 0.035);
+    reedDummy.position.set(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.09, world.z);
+    reedDummy.rotation.set(0, index * 1.31, Math.PI / 2 + Math.sin(index) * 0.08);
+    reedDummy.scale.set(0.7 + index * 0.08, 0.72 + (index % 2) * 0.22, 0.7);
+    reedDummy.updateMatrix();
+    branches.setMatrixAt(index, reedDummy.matrix);
+  }
+  branches.instanceMatrix.needsUpdate = true;
+  branches.castShadow = false;
+  branches.receiveShadow = true;
+  pond.add(branches);
+
   pond.userData.update = (elapsed) => {
-    waterMaterial.opacity = 0.55 + Math.sin(elapsed * 0.42) * 0.018;
+    waterMaterial.opacity = 0.73 + Math.sin(elapsed * 0.42) * 0.018;
+    const shader = waterMaterial.userData.shader;
+    if (shader?.uniforms?.uPondTime) shader.uniforms.uPondTime.value = elapsed;
   };
   console.info('[Tamarind] Brejo procedural leve criado.', {
     center: center.toArray(),
-    waterTriangles: contour.length,
+    waterTriangles: contour.length * 2,
     marginTriangles: contour.length * 2,
     reedInstances: reedCount,
+    stoneInstances: stoneCount,
+    floatingLeaves: leafCount,
+    driftwood: branchCount,
   });
   return pond;
 }
