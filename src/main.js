@@ -91,9 +91,18 @@ function createDayNightController(scene, activeRenderer, landmarks, activeWater)
   const seenLightTargets = new Set();
   const localLights = [];
   const luminousName = /window|glass|lamp|light|emissive|lantern/i;
+  const belongsTo = (object, root) => {
+    let current = object;
+    while (current) {
+      if (current === root) return true;
+      current = current.parent;
+    }
+    return false;
+  };
   const refresh = () => {
     scene.traverse((object) => {
       if (!object.isMesh) return;
+      const isArchitectureMesh = belongsTo(object, landmarks.architecture);
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       for (const material of materials) {
         if (!material?.emissive || seenMaterials.has(material)) continue;
@@ -106,30 +115,41 @@ function createDayNightController(scene, activeRenderer, landmarks, activeWater)
           material,
           dayColor: material.emissive.clone(),
           dayIntensity: material.emissiveIntensity,
-          nightColor: new THREE.Color('#ff9a45'),
-          nightIntensity: Math.max(1.85, material.emissiveIntensity * 2.4),
+          nightColor: new THREE.Color(isArchitectureMesh ? '#8b5438' : '#ff9a45'),
+          nightIntensity: isArchitectureMesh
+            ? Math.min(0.12, material.emissiveIntensity * 0.12)
+            : Math.max(1.85, material.emissiveIntensity * 2.4),
         });
       }
     });
 
     const localLightTargets = [
-      ...Object.values(landmarks),
-      scene.getObjectByName('OrientalPagoda'),
-      scene.getObjectByName('DistantHillCastleGLB'),
-    ].filter(Boolean);
-    for (const landmark of localLightTargets) {
+      ['tecnomago', landmarks.tecnomago],
+      ['apps', landmarks.apps],
+      ['architecture', landmarks.architecture],
+      ['pagoda', scene.getObjectByName('OrientalPagoda')],
+      ['castle', scene.getObjectByName('DistantHillCastleGLB')],
+    ].filter(([, object]) => Boolean(object));
+    for (const [key, landmark] of localLightTargets) {
       if (seenLightTargets.has(landmark)) continue;
       seenLightTargets.add(landmark);
       const bounds = new THREE.Box3().setFromObject(landmark);
       const size = bounds.getSize(new THREE.Vector3());
       const position = bounds.getCenter(new THREE.Vector3());
-      position.y = THREE.MathUtils.lerp(bounds.min.y, bounds.max.y, 0.52);
+      const isArchitecture = key === 'architecture';
+      position.y = THREE.MathUtils.lerp(bounds.min.y, bounds.max.y, isArchitecture ? 0.34 : 0.52);
       position.z = bounds.max.z + THREE.MathUtils.clamp(size.z * 0.04, 0.4, 1);
       const index = localLights.length;
-      const light = new THREE.PointLight(index === 0 ? '#ff9a55' : '#ffb35c', 0, 18, 2);
+      const light = new THREE.PointLight(
+        isArchitecture ? '#ffd0a3' : index === 0 ? '#ff9a55' : '#ffb35c',
+        0,
+        isArchitecture ? 9 : 18,
+        isArchitecture ? 2.25 : 2,
+      );
       light.name = `NightLandmarkFill_${index}`;
       light.position.copy(position);
       light.castShadow = false;
+      light.userData.nightIntensity = isArchitecture ? 9 : index < 3 ? 56 : 27;
       scene.add(light);
       localLights.push(light);
     }
@@ -169,8 +189,8 @@ function createDayNightController(scene, activeRenderer, landmarks, activeWater)
         entry.material.emissive.copy(colorScratch.copy(entry.dayColor).lerp(entry.nightColor, value));
         entry.material.emissiveIntensity = THREE.MathUtils.lerp(entry.dayIntensity, entry.nightIntensity, value);
       }
-      localLights.forEach((light, index) => {
-        light.intensity = THREE.MathUtils.lerp(0, index < 3 ? 56 : 27, value);
+      localLights.forEach((light) => {
+        light.intensity = THREE.MathUtils.lerp(0, light.userData.nightIntensity, value);
       });
     },
   };
