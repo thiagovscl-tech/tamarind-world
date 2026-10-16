@@ -129,7 +129,7 @@ async function loadRiggedGoat(terrain, { treePlacements = [], avoidObjects = [] 
   const goat = new THREE.Group();
   goat.name = 'RiggedGoat';
   goat.rotation.y = -0.42;
-  goat.scale.setScalar(3.25 / Math.max(sourceSize.y, 0.0001));
+  goat.scale.setScalar(1.65 / Math.max(sourceSize.y, 0.0001));
 
   source.position.set(-sourceCenter.x, -sourceBounds.min.y, -sourceCenter.z);
   goat.add(source);
