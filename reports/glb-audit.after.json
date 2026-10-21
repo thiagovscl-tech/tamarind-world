@@ -1,5 +1,51 @@
 [
   {
+    "name": "architecture_landmark.web.glb",
+    "active": true,
+    "bytes": 4453752,
+    "size": "4.25 MB",
+    "meshes": 6,
+    "primitives": 6,
+    "triangles": 498604,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 178724
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 112904
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 49616
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "EXT_meshopt_compression",
+      "EXT_texture_webp",
+      "KHR_materials_specular",
+      "KHR_mesh_quantization"
+    ],
+    "compressionCandidate": false
+  },
+  {
     "name": "arquiteturaColiseu_texturizado.web.glb",
     "active": true,
     "bytes": 4212348,
@@ -33,6 +79,66 @@
     "extensions": [
       "EXT_meshopt_compression",
       "EXT_texture_webp",
+      "KHR_mesh_quantization"
+    ],
+    "compressionCandidate": false
+  },
+  {
+    "name": "arvore.runtime.web.glb",
+    "active": true,
+    "bytes": 7996472,
+    "size": "7.63 MB",
+    "meshes": 1,
+    "primitives": 2,
+    "triangles": 455509,
+    "materials": 2,
+    "textures": [
+      {
+        "name": "island_tree_02_branches_nor_gl_1k",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 62148
+      },
+      {
+        "name": "island_tree_02_branches_diff_1k",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 41738
+      },
+      {
+        "name": "plant-8_normal",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 31390
+      },
+      {
+        "name": "plant-8",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 59206
+      },
+      {
+        "name": "plant-8",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 52344
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "EXT_meshopt_compression",
+      "EXT_texture_webp",
+      "KHR_materials_specular",
       "KHR_mesh_quantization"
     ],
     "compressionCandidate": false
@@ -619,6 +725,166 @@
       "KHR_materials_specular",
       "KHR_mesh_quantization",
       "KHR_texture_transform"
+    ],
+    "compressionCandidate": false
+  },
+  {
+    "name": "fantastic_castle.web.glb",
+    "active": true,
+    "bytes": 1461288,
+    "size": "1.39 MB",
+    "meshes": 5,
+    "primitives": 5,
+    "triangles": 53629,
+    "materials": 5,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 57768
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 65510
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 33734
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 48588
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 76208
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 19354
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 53828
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 74752
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 37740
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 39236
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 53238
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 24878
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 33650
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 2226
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 550
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 1,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "EXT_meshopt_compression",
+      "EXT_texture_webp",
+      "KHR_mesh_quantization"
+    ],
+    "compressionCandidate": false
+  },
+  {
+    "name": "free_battlemage_wizard.web.glb",
+    "active": true,
+    "bytes": 282972,
+    "size": "0.27 MB",
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 29999,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 29512
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "EXT_meshopt_compression",
+      "EXT_texture_webp",
+      "KHR_mesh_quantization"
     ],
     "compressionCandidate": false
   },

@@ -765,6 +765,78 @@
     "compressionCandidate": true
   },
   {
+    "name": "architecture_landmark.glb",
+    "active": false,
+    "bytes": 34352124,
+    "size": "32.76 MB",
+    "meshes": 6,
+    "primitives": 6,
+    "triangles": 498604,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1740385
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1200986
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 938765
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "KHR_materials_specular"
+    ],
+    "compressionCandidate": true
+  },
+  {
+    "name": "bagan_temple_aerial_scan.glb",
+    "active": false,
+    "bytes": 29715524,
+    "size": "28.34 MB",
+    "meshes": 2,
+    "primitives": 2,
+    "triangles": 73324,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/jpeg",
+        "width": 8192,
+        "height": 8192,
+        "bytes": 25842956
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "KHR_materials_unlit"
+    ],
+    "compressionCandidate": true
+  },
+  {
     "name": "casatecnomago-v2.glb",
     "active": false,
     "bytes": 15719840,
@@ -833,6 +905,131 @@
     "compressionCandidate": true
   },
   {
+    "name": "fantastic_castle.glb",
+    "active": false,
+    "bytes": 22214628,
+    "size": "21.19 MB",
+    "meshes": 5,
+    "primitives": 5,
+    "triangles": 53629,
+    "materials": 5,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1784100
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 932705
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1579014
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1771387
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 964559
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1617318
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1642610
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 929489
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1483086
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1391539
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 706041
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1246744
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1367147
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 167615
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 3497
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 1,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
+  },
+  {
     "name": "fortaleza.glb",
     "active": false,
     "bytes": 15393280,
@@ -855,6 +1052,33 @@
         "width": 512,
         "height": 512,
         "bytes": 222584
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
+  },
+  {
+    "name": "free_battlemage_wizard.glb",
+    "active": false,
+    "bytes": 2632828,
+    "size": "2.51 MB",
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 29999,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 1545895
       }
     ],
     "duplicateMeshes": 0,

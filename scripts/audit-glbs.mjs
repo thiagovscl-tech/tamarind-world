@@ -21,6 +21,18 @@ const ACTIVE_MODELS = [
   'bode_rigged.glb',
 ];
 const ACTIVE_WEB_MODELS = new Set(ACTIVE_MODELS.map((name) => name.replace(/\.glb$/i, '.web.glb')));
+const ACTIVE_RUNTIME_MODELS = new Set([
+  'ilha_texturizada.web.glb',
+  'casanovatecnomago.web.glb',
+  'architecture_landmark.web.glb',
+  'basilica_texturizada.web.glb',
+  'arvore.runtime.web.glb',
+  'templo.web.glb',
+  'casasite.web.glb',
+  'fantastic_castle.web.glb',
+  'bode_rigged.web.glb',
+  'free_battlemage_wizard.web.glb',
+]);
 
 const io = new NodeIO()
   .registerExtensions(ALL_EXTENSIONS)
@@ -114,7 +126,9 @@ async function inspectModel(fileName) {
   const extensions = root.listExtensionsUsed().map((extension) => extension.extensionName);
   return {
     name: fileName,
-    active: ACTIVE_MODELS.includes(fileName) || ACTIVE_WEB_MODELS.has(fileName),
+    active: ACTIVE_MODELS.includes(fileName)
+      || ACTIVE_WEB_MODELS.has(fileName)
+      || ACTIVE_RUNTIME_MODELS.has(fileName),
     bytes: stat.size,
     size: formatBytes(stat.size),
     meshes: meshes.length,

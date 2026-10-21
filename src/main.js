@@ -7,15 +7,44 @@ import { updateBearProcedural } from './scene3d/createBearCharacter3d.js';
 
 console.time('[Tamarind] tempo até first render');
 console.time('[Tamarind] tempo até mundo completo');
-const tamarindMetrics = { startedAt: performance.now() };
+const tamarindMetrics = {
+  startedAt: 0,
+  scriptStartedMs: performance.now(),
+  assets: [],
+  longTasks: [],
+};
 window.__tamarindMetrics = tamarindMetrics;
+
+const navigationEntry = performance.getEntriesByType('navigation')[0];
+if (navigationEntry?.domContentLoadedEventEnd) {
+  tamarindMetrics.domContentLoadedMs = navigationEntry.domContentLoadedEventEnd;
+} else {
+  window.addEventListener('DOMContentLoaded', () => {
+    tamarindMetrics.domContentLoadedMs = performance.now();
+  }, { once: true });
+}
+if ('PerformanceObserver' in window) {
+  try {
+    const longTaskObserver = new PerformanceObserver((list) => {
+      list.getEntries().forEach((entry) => {
+        tamarindMetrics.longTasks.push({ startMs: entry.startTime, durationMs: entry.duration });
+      });
+    });
+    longTaskObserver.observe({ type: 'longtask', buffered: true });
+  } catch {
+    // Long Task API is optional; asset timings remain available everywhere.
+  }
+}
 
 const container = document.querySelector('#scene');
 const status = document.querySelector('#scene-status');
 const navigationHint = document.querySelector('.navigation-hint');
 const topNavigation = document.querySelector('.top-navigation');
 const dayNightToggle = document.querySelector('#day-night-toggle');
+const rendererStartedAt = performance.now();
 const renderer = createRenderer(container);
+tamarindMetrics.rendererCreatedMs = performance.now();
+tamarindMetrics.rendererCreationMs = performance.now() - rendererStartedAt;
 const camera = createCamera3d(container.clientWidth / container.clientHeight);
 const pointer = new THREE.Vector2();
 const easedPointer = new THREE.Vector2();
@@ -331,7 +360,7 @@ async function initializeScene() {
     if (cameraPosition) camera.position.set(...cameraPosition);
     camera.lookAt(camera.userData.baseTarget);
     renderer.render(scene, camera);
-    tamarindMetrics.firstRenderMs = performance.now() - tamarindMetrics.startedAt;
+    tamarindMetrics.firstRenderMs = performance.now();
     console.timeEnd('[Tamarind] tempo até first render');
     status.remove();
     const clock = new THREE.Clock();
@@ -392,6 +421,9 @@ async function initializeScene() {
         refreshLandmarkAnchors();
         console.info(`[Tamarind] Asset secundário integrado: ${key}.`);
       },
+      onPhaseComplete: (phase, elapsedMs) => {
+        console.info(`[Tamarind] Fase ${phase} pronta em ${Math.round(elapsedMs)} ms.`);
+      },
     }).then((secondary) => {
       updateGoatWalk = secondary.updateGoatWalk;
       updateWizardNpc = secondary.updateWizardNpc;
@@ -400,14 +432,60 @@ async function initializeScene() {
       refreshLandmarkAnchors();
       const resources = performance.getEntriesByType('resource');
       const glbResources = resources.filter((entry) => entry.name.includes('.glb'));
-      tamarindMetrics.worldCompleteMs = performance.now() - tamarindMetrics.startedAt;
+      tamarindMetrics.worldCompleteMs = performance.now();
       tamarindMetrics.requestCount = resources.length;
       tamarindMetrics.glbRequestCount = glbResources.length;
       tamarindMetrics.totalTransferBytes = resources.reduce(
         (total, entry) => total + (entry.transferSize || entry.encodedBodySize || 0),
         0,
       );
+      const resourceCounts = resources.reduce((counts, entry) => {
+        const url = entry.name.split('?')[0];
+        counts[url] = (counts[url] ?? 0) + 1;
+        return counts;
+      }, {});
+      tamarindMetrics.duplicateRequests = Object.entries(resourceCounts)
+        .filter(([, count]) => count > 1)
+        .map(([url, count]) => ({ url, count }));
+      console.table(tamarindMetrics.assets.map((asset) => ({
+        asset: asset.asset,
+        phase: asset.phase,
+        sizeMB: (asset.bytes / 1024 / 1024).toFixed(2),
+        downloadMs: Math.round(asset.downloadMs),
+        parseMs: Math.round(asset.parseMs),
+        totalMs: Math.round(asset.totalMs),
+      })));
       console.info('[Tamarind] Métricas de carregamento.', JSON.stringify(tamarindMetrics));
+      if (new URLSearchParams(window.location.search).has('perf')) {
+        const diagnostic = {
+          firstRenderMs: Math.round(tamarindMetrics.firstRenderMs),
+          landmarksReadyMs: Math.round(tamarindMetrics.landmarksReadyMs),
+          inhabitedReadyMs: Math.round(tamarindMetrics.inhabitedReadyMs),
+          worldCompleteMs: Math.round(tamarindMetrics.worldCompleteMs),
+          glbRequestCount: tamarindMetrics.glbRequestCount,
+          duplicateRequests: tamarindMetrics.duplicateRequests,
+          surfaceSampler: tamarindMetrics.surfaceSampler,
+          assets: tamarindMetrics.assets.map((asset) => ({
+            asset: asset.asset,
+            bytes: asset.bytes,
+            downloadMs: Math.round(asset.downloadMs),
+            parseMs: Math.round(asset.parseMs),
+            totalMs: Math.round(asset.totalMs),
+          })),
+        };
+        document.title = [
+          'Tamarind Perf',
+          `first=${Math.round(tamarindMetrics.firstRenderMs)}ms`,
+          `landmarks=${Math.round(tamarindMetrics.landmarksReadyMs)}ms`,
+          `world=${Math.round(tamarindMetrics.worldCompleteMs)}ms`,
+          `glb=${tamarindMetrics.glbRequestCount}`,
+        ].join(' | ');
+        window.history.replaceState(
+          null,
+          '',
+          `${window.location.pathname}${window.location.search}#metrics=${encodeURIComponent(JSON.stringify(diagnostic))}`,
+        );
+      }
       console.timeEnd('[Tamarind] tempo até mundo completo');
     }).catch((error) => {
       console.error('Falha ao carregar assets secundários do mundo Tamarind.', error);

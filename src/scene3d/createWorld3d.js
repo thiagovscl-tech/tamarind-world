@@ -6,25 +6,84 @@ THREE.Cache.enabled = true;
 
 const TERRAIN_URL = '/artwork/models/ilha_texturizada.web.glb';
 const TECNOMAGO_HOUSE_URL = '/artwork/models/casanovatecnomago.web.glb';
-const ARCHITECTURE_HOUSE_URL = '/artwork/models/architecture_landmark.glb';
+const ARCHITECTURE_HOUSE_URL = '/artwork/models/architecture_landmark.web.glb';
 const APPS_BASILICA_URL = '/artwork/models/basilica_texturizada.web.glb';
-const TREE_URL = '/artwork/models/arvore.web.glb';
+const TREE_URL = '/artwork/models/arvore.runtime.web.glb';
 const TEMPLE_URL = '/artwork/models/templo.web.glb';
 const SETTLEMENT_HOUSE_URL = '/artwork/models/casasite.web.glb';
-const BACKGROUND_CASTLE_URL = '/artwork/models/fantastic_castle.glb';
+const BACKGROUND_CASTLE_URL = '/artwork/models/fantastic_castle.web.glb';
 const RIGGED_GOAT_URL = '/artwork/models/bode_rigged.web.glb';
-const WIZARD_NPC_URL = '/artwork/models/free_battlemage_wizard.glb';
+const WIZARD_NPC_URL = '/artwork/models/free_battlemage_wizard.web.glb';
 const COAST_DATA_URL = '/artwork/data/coastline.web.json';
 const TARGET_HORIZONTAL_SIZE = 150;
 
 const gltfLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+const glbDownloads = new Map();
 const gltfRequests = new Map();
 
-function loadGlbOnce(url, label) {
+function getMetrics() {
+  const metrics = window.__tamarindMetrics ?? (window.__tamarindMetrics = {
+    startedAt: performance.now(),
+  });
+  metrics.assets ??= [];
+  return metrics;
+}
+
+function primeGlbDownload(url, label, phase = 'secondary') {
+  if (!glbDownloads.has(url)) {
+    const metric = {
+      asset: label,
+      url,
+      phase,
+      startedAtMs: performance.now() - getMetrics().startedAt,
+      bytes: 0,
+      downloadMs: 0,
+      parseMs: 0,
+      totalMs: 0,
+    };
+    getMetrics().assets.push(metric);
+    const startedAt = performance.now();
+    const request = fetch(url, { cache: 'force-cache' })
+      .then((response) => {
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}: ${url}`);
+        return response.arrayBuffer();
+      })
+      .then((buffer) => {
+        metric.downloadMs = performance.now() - startedAt;
+        metric.bytes = buffer.byteLength;
+        return { buffer, metric };
+      })
+      .catch((error) => {
+        glbDownloads.delete(url);
+        metric.error = error.message;
+        throw error;
+      });
+    glbDownloads.set(url, request);
+  }
+  return glbDownloads.get(url);
+}
+
+function loadGlbOnce(url, label, phase = 'secondary') {
   if (!gltfRequests.has(url)) {
     const timerLabel = `[Tamarind] GLB ${label}`;
     console.time(timerLabel);
-    const request = gltfLoader.loadAsync(url)
+    const request = primeGlbDownload(url, label, phase)
+      .then(async ({ buffer, metric }) => {
+        const parseStartedAt = performance.now();
+        const resourcePath = url.slice(0, url.lastIndexOf('/') + 1);
+        const gltf = await gltfLoader.parseAsync(buffer, resourcePath);
+        metric.parseMs = performance.now() - parseStartedAt;
+        metric.totalMs = performance.now() - (getMetrics().startedAt + metric.startedAtMs);
+        console.info('[Tamarind] Asset carregado.', {
+          asset: label,
+          phase,
+          sizeMB: (metric.bytes / 1024 / 1024).toFixed(2),
+          downloadMs: Math.round(metric.downloadMs),
+          parseMs: Math.round(metric.parseMs),
+          totalMs: Math.round(metric.totalMs),
+        });
+        return gltf;
+      })
       .finally(() => console.timeEnd(timerLabel))
       .catch((error) => {
         gltfRequests.delete(url);
@@ -46,8 +105,118 @@ function runWhenIdle(task) {
   });
 }
 
+function createTerrainSurfaceSampler(terrain, cellSize = 3) {
+  const meshes = [];
+  let maximumTriangleCount = 0;
+  const buckets = new Map();
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const ab = new THREE.Vector3();
+  const ac = new THREE.Vector3();
+  const normal = new THREE.Vector3();
+  terrain.updateMatrixWorld(true);
+
+  terrain.traverse((object) => {
+    if (!object.isMesh || !object.geometry?.attributes?.position) return;
+    const { geometry } = object;
+    meshes.push(object);
+    maximumTriangleCount += geometry.index
+      ? geometry.index.count / 3
+      : geometry.attributes.position.count / 3;
+  });
+
+  const triangleStride = 13;
+  const triangleData = new Float32Array(maximumTriangleCount * triangleStride);
+  let triangleRecordCount = 0;
+
+  const bucketKey = (cellX, cellZ) => `${cellX}:${cellZ}`;
+  for (const object of meshes) {
+    const { geometry } = object;
+    const position = geometry.attributes.position;
+    const index = geometry.index;
+    const triangleCount = index ? index.count / 3 : position.count / 3;
+    for (let triangleIndex = 0; triangleIndex < triangleCount; triangleIndex += 1) {
+      const ia = index ? index.getX(triangleIndex * 3) : triangleIndex * 3;
+      const ib = index ? index.getX(triangleIndex * 3 + 1) : triangleIndex * 3 + 1;
+      const ic = index ? index.getX(triangleIndex * 3 + 2) : triangleIndex * 3 + 2;
+      a.fromBufferAttribute(position, ia).applyMatrix4(object.matrixWorld);
+      b.fromBufferAttribute(position, ib).applyMatrix4(object.matrixWorld);
+      c.fromBufferAttribute(position, ic).applyMatrix4(object.matrixWorld);
+      const denominator = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z);
+      if (Math.abs(denominator) < 1e-8) continue;
+
+      normal.copy(ab.subVectors(b, a)).cross(ac.subVectors(c, a)).normalize();
+      if (normal.y < 0) normal.multiplyScalar(-1);
+      const recordIndex = triangleRecordCount;
+      const recordOffset = recordIndex * triangleStride;
+      triangleData.set([
+        a.x, a.y, a.z,
+        b.x, b.y, b.z,
+        c.x, c.y, c.z,
+        denominator,
+        normal.x, normal.y, normal.z,
+      ], recordOffset);
+      triangleRecordCount += 1;
+      const minCellX = Math.floor(Math.min(a.x, b.x, c.x) / cellSize);
+      const maxCellX = Math.floor(Math.max(a.x, b.x, c.x) / cellSize);
+      const minCellZ = Math.floor(Math.min(a.z, b.z, c.z) / cellSize);
+      const maxCellZ = Math.floor(Math.max(a.z, b.z, c.z) / cellSize);
+      for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+        for (let cellZ = minCellZ; cellZ <= maxCellZ; cellZ += 1) {
+          const key = bucketKey(cellX, cellZ);
+          const bucket = buckets.get(key);
+          if (bucket) bucket.push(recordIndex);
+          else buckets.set(key, [recordIndex]);
+        }
+      }
+    }
+  }
+
+  return {
+    triangleCount: triangleRecordCount,
+    bucketCount: buckets.size,
+    sample(x, z) {
+      const candidates = buckets.get(bucketKey(Math.floor(x / cellSize), Math.floor(z / cellSize)));
+      if (!candidates) return null;
+      let best = null;
+      for (const recordIndex of candidates) {
+        const offset = recordIndex * triangleStride;
+        const ax = triangleData[offset];
+        const ay = triangleData[offset + 1];
+        const az = triangleData[offset + 2];
+        const bx = triangleData[offset + 3];
+        const by = triangleData[offset + 4];
+        const bz = triangleData[offset + 5];
+        const cx = triangleData[offset + 6];
+        const cy = triangleData[offset + 7];
+        const cz = triangleData[offset + 8];
+        const denominator = triangleData[offset + 9];
+        const weightA = ((bz - cz) * (x - cx)
+          + (cx - bx) * (z - cz)) / denominator;
+        const weightB = ((cz - az) * (x - cx)
+          + (ax - cx) * (z - cz)) / denominator;
+        const weightC = 1 - weightA - weightB;
+        if (weightA < -1e-5 || weightB < -1e-5 || weightC < -1e-5) continue;
+        const y = weightA * ay + weightB * by + weightC * cy;
+        if (!best || y > best.point.y) {
+          best = {
+            point: new THREE.Vector3(x, y, z),
+            normal: new THREE.Vector3(
+              triangleData[offset + 10],
+              triangleData[offset + 11],
+              triangleData[offset + 12],
+            ),
+          };
+        }
+      }
+      return best;
+    },
+  };
+}
+
 async function loadMasterTerrain() {
-  const gltf = await loadGlbOnce(TERRAIN_URL, 'ilha/base');
+  const gltf = await loadGlbOnce(TERRAIN_URL, 'ilha/base', 'critical');
   const source = gltf.scene;
   source.updateMatrixWorld(true);
 
@@ -90,6 +259,8 @@ async function loadMasterTerrain() {
 }
 
 function terrainHeightAt(terrain, x, z) {
+  const indexedSurface = terrain.userData.surfaceSampler?.sample(x, z);
+  if (indexedSurface) return indexedSurface.point.y;
   terrain.updateMatrixWorld(true);
   const raycaster = new THREE.Raycaster(
     new THREE.Vector3(x, 120, z),
@@ -102,6 +273,8 @@ function terrainHeightAt(terrain, x, z) {
 }
 
 function terrainSurfaceAt(terrain, x, z) {
+  const indexedSurface = terrain.userData.surfaceSampler?.sample(x, z);
+  if (indexedSurface) return indexedSurface;
   terrain.updateMatrixWorld(true);
   const raycaster = new THREE.Raycaster(
     new THREE.Vector3(x, 120, z),
@@ -2308,6 +2481,7 @@ function createProceduralMillPond(terrain) {
 }
 
 export async function createWorld3d() {
+  getMetrics().sceneCreationStartedMs = performance.now() - getMetrics().startedAt;
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#aebdca');
   scene.fog = new THREE.Fog('#aebdca', 155, 285);
@@ -2382,7 +2556,7 @@ export async function createWorld3d() {
   world.add(ocean);
 
   let secondaryLoadPromise = null;
-  const startSecondaryLoad = ({ onAssetLoaded } = {}) => {
+  const startSecondaryLoad = ({ onAssetLoaded, onPhaseComplete } = {}) => {
     if (secondaryLoadPromise) return secondaryLoadPromise;
 
     secondaryLoadPromise = (async () => {
@@ -2393,7 +2567,24 @@ export async function createWorld3d() {
         return object;
       };
 
+      const samplerStartedAt = performance.now();
+      terrainGroup.userData.surfaceSampler = await runWhenIdle(() => (
+        createTerrainSurfaceSampler(terrainGroup)
+      ));
+      getMetrics().terrainSamplerReadyMs = performance.now() - getMetrics().startedAt;
+      getMetrics().terrainSamplerBuildMs = performance.now() - samplerStartedAt;
+      console.info('[Tamarind] Índice espacial do terreno pronto.', {
+        buildMs: Math.round(getMetrics().terrainSamplerBuildMs),
+        triangles: terrainGroup.userData.surfaceSampler.triangleCount,
+        buckets: terrainGroup.userData.surfaceSampler.bucketCount,
+      });
+
       console.time('[Tamarind] fase 2 — landmarks principais');
+      // Start only the three landmark downloads together. Parsing remains
+      // incremental so large GLBs cannot monopolize the main thread at once.
+      primeGlbDownload(TECNOMAGO_HOUSE_URL, 'Casa do Tecnomago', 'landmarks');
+      primeGlbDownload(APPS_BASILICA_URL, 'Basílica Apps', 'landmarks');
+      primeGlbDownload(ARCHITECTURE_HOUSE_URL, 'Coliseu 3D/Arquitetura', 'landmarks');
       const tecnomagoHouse = await runWhenIdle(() => loadTecnomagoHouse(terrainGroup));
       landmarks.tecnomago = tecnomagoHouse;
       addWorldAsset('tecnomago', tecnomagoHouse);
@@ -2409,8 +2600,18 @@ export async function createWorld3d() {
       landmarks.architecture = architectureHouse;
       addWorldAsset('architecture', architectureHouse);
       console.timeEnd('[Tamarind] fase 2 — landmarks principais');
+      getMetrics().landmarksReadyMs = performance.now() - getMetrics().startedAt;
+      onPhaseComplete?.('landmarks', getMetrics().landmarksReadyMs);
 
       console.time('[Tamarind] fase 3 — mundo habitado');
+      // Network work overlaps inside this phase while each parse/integration is
+      // yielded separately. Later phases never block the first rendered frame.
+      primeGlbDownload(TEMPLE_URL, 'templo oriental', 'inhabited');
+      primeGlbDownload(BACKGROUND_CASTLE_URL, 'castelo ao fundo', 'inhabited');
+      primeGlbDownload(SETTLEMENT_HOUSE_URL, 'casas da vila', 'inhabited');
+      primeGlbDownload(TREE_URL, 'árvores', 'inhabited');
+      primeGlbDownload(RIGGED_GOAT_URL, 'bode', 'inhabited');
+      primeGlbDownload(WIZARD_NPC_URL, 'mago NPC', 'inhabited');
       const pagoda = await runWhenIdle(() => loadOrientalPagoda(terrainGroup));
       addWorldAsset('pagoda', pagoda);
 
@@ -2453,6 +2654,8 @@ export async function createWorld3d() {
       const wizardResult = await runWhenIdle(() => loadWizardNpc(terrainGroup, tecnomagoHouse));
       addWorldAsset('wizard', wizardResult.wizard);
       console.timeEnd('[Tamarind] fase 3 — mundo habitado');
+      getMetrics().inhabitedReadyMs = performance.now() - getMetrics().startedAt;
+      onPhaseComplete?.('inhabited', getMetrics().inhabitedReadyMs);
 
       console.time('[Tamarind] fase 4 — acabamento costeiro');
       const harbor = await runWhenIdle(() => createHarbor(terrainGroup, ocean.position.y));
@@ -2462,6 +2665,8 @@ export async function createWorld3d() {
       ));
       addWorldAsset('coast', coast);
       console.timeEnd('[Tamarind] fase 4 — acabamento costeiro');
+      getMetrics().decorReadyMs = performance.now() - getMetrics().startedAt;
+      onPhaseComplete?.('decor', getMetrics().decorReadyMs);
 
       return {
         harbor,
