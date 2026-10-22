@@ -1,20 +1,222 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
-const TERRAIN_URL = '/artwork/models/ilha_texturizada.glb';
-const TECNOMAGO_HOUSE_URL = '/artwork/models/observatorioTec_Texturizado.glb';
-const ARCHITECTURE_HOUSE_URL = '/artwork/models/arquiteturaColiseu_texturizado.glb';
-const APPS_BASILICA_URL = '/artwork/models/basilica_texturizada.glb';
-const TREE_URL = '/artwork/models/arvore.glb';
-const TEMPLE_URL = '/artwork/models/templo.glb';
-const SETTLEMENT_HOUSE_URL = '/artwork/models/casasite.glb';
-const BACKGROUND_CASTLE_URL = '/artwork/models/casteloSite.glb';
-const RIGGED_GOAT_URL = '/artwork/models/bode_rigged.glb';
+THREE.Cache.enabled = true;
+
+const TERRAIN_URL = '/artwork/models/ilha_texturizada.web.glb';
+const TECNOMAGO_HOUSE_URL = '/artwork/models/casanovatecnomago.web.glb';
+const ARCHITECTURE_HOUSE_URL = '/artwork/models/architecture_landmark.web.glb';
+const APPS_BASILICA_URL = '/artwork/models/basilica_texturizada.web.glb';
+const TREE_URL = '/artwork/models/arvore.runtime.web.glb';
+const TEMPLE_URL = '/artwork/models/templo.web.glb';
+const SETTLEMENT_HOUSE_URL = '/artwork/models/casasite.web.glb';
+const BACKGROUND_CASTLE_URL = '/artwork/models/fantastic_castle.web.glb';
+const RIGGED_GOAT_URL = '/artwork/models/bode_rigged.web.glb';
+const WIZARD_NPC_URL = '/artwork/models/free_battlemage_wizard.web.glb';
+const COAST_DATA_URL = '/artwork/data/coastline.web.json';
 const TARGET_HORIZONTAL_SIZE = 150;
 
+const gltfLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+const glbDownloads = new Map();
+const gltfRequests = new Map();
+
+function getMetrics() {
+  const metrics = window.__tamarindMetrics ?? (window.__tamarindMetrics = {
+    startedAt: performance.now(),
+  });
+  metrics.assets ??= [];
+  return metrics;
+}
+
+function primeGlbDownload(url, label, phase = 'secondary') {
+  if (!glbDownloads.has(url)) {
+    const metric = {
+      asset: label,
+      url,
+      phase,
+      startedAtMs: performance.now() - getMetrics().startedAt,
+      bytes: 0,
+      downloadMs: 0,
+      parseMs: 0,
+      totalMs: 0,
+    };
+    getMetrics().assets.push(metric);
+    const startedAt = performance.now();
+    const request = fetch(url, { cache: 'force-cache' })
+      .then((response) => {
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}: ${url}`);
+        return response.arrayBuffer();
+      })
+      .then((buffer) => {
+        metric.downloadMs = performance.now() - startedAt;
+        metric.bytes = buffer.byteLength;
+        return { buffer, metric };
+      })
+      .catch((error) => {
+        glbDownloads.delete(url);
+        metric.error = error.message;
+        throw error;
+      });
+    glbDownloads.set(url, request);
+  }
+  return glbDownloads.get(url);
+}
+
+function loadGlbOnce(url, label, phase = 'secondary') {
+  if (!gltfRequests.has(url)) {
+    const timerLabel = `[Tamarind] GLB ${label}`;
+    console.time(timerLabel);
+    const request = primeGlbDownload(url, label, phase)
+      .then(async ({ buffer, metric }) => {
+        const parseStartedAt = performance.now();
+        const resourcePath = url.slice(0, url.lastIndexOf('/') + 1);
+        const gltf = await gltfLoader.parseAsync(buffer, resourcePath);
+        metric.parseMs = performance.now() - parseStartedAt;
+        metric.totalMs = performance.now() - (getMetrics().startedAt + metric.startedAtMs);
+        console.info('[Tamarind] Asset carregado.', {
+          asset: label,
+          phase,
+          sizeMB: (metric.bytes / 1024 / 1024).toFixed(2),
+          downloadMs: Math.round(metric.downloadMs),
+          parseMs: Math.round(metric.parseMs),
+          totalMs: Math.round(metric.totalMs),
+        });
+        return gltf;
+      })
+      .finally(() => console.timeEnd(timerLabel))
+      .catch((error) => {
+        gltfRequests.delete(url);
+        throw error;
+      });
+    gltfRequests.set(url, request);
+  }
+  return gltfRequests.get(url);
+}
+
+function runWhenIdle(task) {
+  return new Promise((resolve, reject) => {
+    const run = () => Promise.resolve().then(task).then(resolve, reject);
+    if ('requestIdleCallback' in window) {
+      window.requestIdleCallback(run, { timeout: 250 });
+    } else {
+      window.setTimeout(run, 0);
+    }
+  });
+}
+
+function createTerrainSurfaceSampler(terrain, cellSize = 3) {
+  const meshes = [];
+  let maximumTriangleCount = 0;
+  const buckets = new Map();
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const ab = new THREE.Vector3();
+  const ac = new THREE.Vector3();
+  const normal = new THREE.Vector3();
+  terrain.updateMatrixWorld(true);
+
+  terrain.traverse((object) => {
+    if (!object.isMesh || !object.geometry?.attributes?.position) return;
+    const { geometry } = object;
+    meshes.push(object);
+    maximumTriangleCount += geometry.index
+      ? geometry.index.count / 3
+      : geometry.attributes.position.count / 3;
+  });
+
+  const triangleStride = 13;
+  const triangleData = new Float32Array(maximumTriangleCount * triangleStride);
+  let triangleRecordCount = 0;
+
+  const bucketKey = (cellX, cellZ) => `${cellX}:${cellZ}`;
+  for (const object of meshes) {
+    const { geometry } = object;
+    const position = geometry.attributes.position;
+    const index = geometry.index;
+    const triangleCount = index ? index.count / 3 : position.count / 3;
+    for (let triangleIndex = 0; triangleIndex < triangleCount; triangleIndex += 1) {
+      const ia = index ? index.getX(triangleIndex * 3) : triangleIndex * 3;
+      const ib = index ? index.getX(triangleIndex * 3 + 1) : triangleIndex * 3 + 1;
+      const ic = index ? index.getX(triangleIndex * 3 + 2) : triangleIndex * 3 + 2;
+      a.fromBufferAttribute(position, ia).applyMatrix4(object.matrixWorld);
+      b.fromBufferAttribute(position, ib).applyMatrix4(object.matrixWorld);
+      c.fromBufferAttribute(position, ic).applyMatrix4(object.matrixWorld);
+      const denominator = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z);
+      if (Math.abs(denominator) < 1e-8) continue;
+
+      normal.copy(ab.subVectors(b, a)).cross(ac.subVectors(c, a)).normalize();
+      if (normal.y < 0) normal.multiplyScalar(-1);
+      const recordIndex = triangleRecordCount;
+      const recordOffset = recordIndex * triangleStride;
+      triangleData.set([
+        a.x, a.y, a.z,
+        b.x, b.y, b.z,
+        c.x, c.y, c.z,
+        denominator,
+        normal.x, normal.y, normal.z,
+      ], recordOffset);
+      triangleRecordCount += 1;
+      const minCellX = Math.floor(Math.min(a.x, b.x, c.x) / cellSize);
+      const maxCellX = Math.floor(Math.max(a.x, b.x, c.x) / cellSize);
+      const minCellZ = Math.floor(Math.min(a.z, b.z, c.z) / cellSize);
+      const maxCellZ = Math.floor(Math.max(a.z, b.z, c.z) / cellSize);
+      for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+        for (let cellZ = minCellZ; cellZ <= maxCellZ; cellZ += 1) {
+          const key = bucketKey(cellX, cellZ);
+          const bucket = buckets.get(key);
+          if (bucket) bucket.push(recordIndex);
+          else buckets.set(key, [recordIndex]);
+        }
+      }
+    }
+  }
+
+  return {
+    triangleCount: triangleRecordCount,
+    bucketCount: buckets.size,
+    sample(x, z) {
+      const candidates = buckets.get(bucketKey(Math.floor(x / cellSize), Math.floor(z / cellSize)));
+      if (!candidates) return null;
+      let best = null;
+      for (const recordIndex of candidates) {
+        const offset = recordIndex * triangleStride;
+        const ax = triangleData[offset];
+        const ay = triangleData[offset + 1];
+        const az = triangleData[offset + 2];
+        const bx = triangleData[offset + 3];
+        const by = triangleData[offset + 4];
+        const bz = triangleData[offset + 5];
+        const cx = triangleData[offset + 6];
+        const cy = triangleData[offset + 7];
+        const cz = triangleData[offset + 8];
+        const denominator = triangleData[offset + 9];
+        const weightA = ((bz - cz) * (x - cx)
+          + (cx - bx) * (z - cz)) / denominator;
+        const weightB = ((cz - az) * (x - cx)
+          + (ax - cx) * (z - cz)) / denominator;
+        const weightC = 1 - weightA - weightB;
+        if (weightA < -1e-5 || weightB < -1e-5 || weightC < -1e-5) continue;
+        const y = weightA * ay + weightB * by + weightC * cy;
+        if (!best || y > best.point.y) {
+          best = {
+            point: new THREE.Vector3(x, y, z),
+            normal: new THREE.Vector3(
+              triangleData[offset + 10],
+              triangleData[offset + 11],
+              triangleData[offset + 12],
+            ),
+          };
+        }
+      }
+      return best;
+    },
+  };
+}
+
 async function loadMasterTerrain() {
-  const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync(TERRAIN_URL);
+  const gltf = await loadGlbOnce(TERRAIN_URL, 'ilha/base', 'critical');
   const source = gltf.scene;
   source.updateMatrixWorld(true);
 
@@ -57,6 +259,8 @@ async function loadMasterTerrain() {
 }
 
 function terrainHeightAt(terrain, x, z) {
+  const indexedSurface = terrain.userData.surfaceSampler?.sample(x, z);
+  if (indexedSurface) return indexedSurface.point.y;
   terrain.updateMatrixWorld(true);
   const raycaster = new THREE.Raycaster(
     new THREE.Vector3(x, 120, z),
@@ -69,6 +273,8 @@ function terrainHeightAt(terrain, x, z) {
 }
 
 function terrainSurfaceAt(terrain, x, z) {
+  const indexedSurface = terrain.userData.surfaceSampler?.sample(x, z);
+  if (indexedSurface) return indexedSurface;
   terrain.updateMatrixWorld(true);
   const raycaster = new THREE.Raycaster(
     new THREE.Vector3(x, 120, z),
@@ -86,7 +292,7 @@ function terrainSurfaceAt(terrain, x, z) {
 }
 
 async function loadRiggedGoat(terrain, { treePlacements = [], avoidObjects = [] } = {}) {
-  const gltf = await new GLTFLoader().loadAsync(RIGGED_GOAT_URL);
+  const gltf = await loadGlbOnce(RIGGED_GOAT_URL, 'bode');
   const source = gltf.scene;
   source.updateMatrixWorld(true);
 
@@ -96,7 +302,7 @@ async function loadRiggedGoat(terrain, { treePlacements = [], avoidObjects = [] 
   const goat = new THREE.Group();
   goat.name = 'RiggedGoat';
   goat.rotation.y = -0.42;
-  goat.scale.setScalar(3.25 / Math.max(sourceSize.y, 0.0001));
+  goat.scale.setScalar(1.65 / Math.max(sourceSize.y, 0.0001));
 
   source.position.set(-sourceCenter.x, -sourceBounds.min.y, -sourceCenter.z);
   goat.add(source);
@@ -353,6 +559,150 @@ async function loadRiggedGoat(terrain, { treePlacements = [], avoidObjects = [] 
   return { goat, updateGoatWalk };
 }
 
+async function loadWizardNpc(terrain, tecnomagoHouse) {
+  const gltf = await loadGlbOnce(WIZARD_NPC_URL, 'mago NPC');
+  const source = gltf.scene;
+  source.updateMatrixWorld(true);
+
+  const sourceBounds = new THREE.Box3().setFromObject(source);
+  const sourceSize = sourceBounds.getSize(new THREE.Vector3());
+  const sourceCenter = sourceBounds.getCenter(new THREE.Vector3());
+  const targetHeight = 2.7;
+  const uniformScale = targetHeight / Math.max(sourceSize.y, 0.0001);
+
+  const wizard = new THREE.Group();
+  wizard.name = 'TecnomagoWizardNpc';
+  wizard.scale.setScalar(uniformScale);
+  const visual = new THREE.Group();
+  visual.name = 'TecnomagoWizardNpcVisual';
+  source.position.set(-sourceCenter.x, -sourceBounds.min.y, -sourceCenter.z);
+  visual.add(source);
+  wizard.add(visual);
+
+  let meshCount = 0;
+  const materials = new Set();
+  source.traverse((object) => {
+    if (!object.isMesh) return;
+    meshCount += 1;
+    object.castShadow = false;
+    object.receiveShadow = true;
+    object.frustumCulled = true;
+    const meshMaterials = Array.isArray(object.material) ? object.material : [object.material];
+    meshMaterials.filter(Boolean).forEach((material) => materials.add(material));
+  });
+
+  const houseBounds = new THREE.Box3().setFromObject(tecnomagoHouse);
+  const houseSize = houseBounds.getSize(new THREE.Vector3());
+  const houseCenter = houseBounds.getCenter(new THREE.Vector3());
+  const entranceDirection = new THREE.Vector2(
+    Math.cos(tecnomagoHouse.rotation.y),
+    -Math.sin(tecnomagoHouse.rotation.y),
+  ).normalize();
+  const lateralDirection = new THREE.Vector2(-entranceDirection.y, entranceDirection.x);
+  const frontDistance = Math.max(houseSize.x, houseSize.z) * 0.58 + 1.2;
+  const routeCenter = new THREE.Vector2(
+    houseCenter.x + entranceDirection.x * frontDistance,
+    houseCenter.z + entranceDirection.y * frontDistance,
+  );
+  const supportOffsets = [[0, 0], [-0.65, 0], [0.65, 0], [0, -0.65], [0, 0.65]];
+  const safeSurfaceAt = (x, z) => {
+    const samples = supportOffsets
+      .map(([dx, dz]) => terrainSurfaceAt(terrain, x + dx, z + dz))
+      .filter(Boolean);
+    if (samples.length !== supportOffsets.length) return null;
+    if (samples.some((surface) => surface.normal.y < 0.72)) return null;
+    const heights = samples.map((surface) => surface.point.y);
+    if (Math.max(...heights) - Math.min(...heights) > 0.75) return null;
+    return samples[0];
+  };
+  const waypointSpecs = [
+    [-3.1, -0.55], [-0.5, 0.7], [2.8, -0.25],
+    [1.65, -1.15], [-1.75, -1.05], [0.8, -1.55],
+  ];
+  const waypoints = waypointSpecs.map(([lateral, forward]) => {
+    const x = routeCenter.x + lateralDirection.x * lateral + entranceDirection.x * forward;
+    const z = routeCenter.y + lateralDirection.y * lateral + entranceDirection.y * forward;
+    return { x, z, surface: safeSurfaceAt(x, z) };
+  }).filter((waypoint) => waypoint.surface).slice(0, 3);
+  if (waypoints.length < 2) {
+    throw new Error('Não foi possível encontrar um percurso seguro para o mago em frente à Casa do Tecnomago.');
+  }
+
+  wizard.position.set(
+    waypoints[0].x,
+    waypoints[0].surface.point.y + 0.018,
+    waypoints[0].z,
+  );
+  wizard.updateMatrixWorld(true);
+  const settledBounds = new THREE.Box3().setFromObject(wizard);
+  wizard.position.y += waypoints[0].surface.point.y - settledBounds.min.y + 0.018;
+  const groundClearance = wizard.position.y - waypoints[0].surface.point.y;
+
+  const toTarget = new THREE.Vector3();
+  const direction = new THREE.Vector3();
+  const targetQuaternion = new THREE.Quaternion();
+  const upAxis = new THREE.Vector3(0, 1, 0);
+  const baseSpeed = 0.38;
+  let sequenceStartedAt = null;
+  let movementState = 'pause';
+  let pauseEndsAt = 1.4;
+  let waypointIndex = 1;
+  let routeDirection = 1;
+  let currentSpeed = baseSpeed;
+  let movementWeight = 0;
+
+  function updateWizardNpc(elapsedTime, deltaTime) {
+    if (sequenceStartedAt === null) sequenceStartedAt = elapsedTime;
+    const sequenceTime = elapsedTime - sequenceStartedAt;
+    if (movementState === 'pause' && sequenceTime >= pauseEndsAt) {
+      movementState = 'move';
+      currentSpeed = baseSpeed * (0.9 + Math.random() * 0.16);
+    }
+
+    const isMoving = movementState === 'move';
+    movementWeight = THREE.MathUtils.damp(movementWeight, isMoving ? 1 : 0, 3.2, deltaTime);
+    if (isMoving) {
+      const target = waypoints[waypointIndex];
+      toTarget.set(target.x - wizard.position.x, 0, target.z - wizard.position.z);
+      const distance = toTarget.length();
+      if (distance <= 0.06) {
+        if (waypointIndex === waypoints.length - 1) routeDirection = -1;
+        if (waypointIndex === 0) routeDirection = 1;
+        waypointIndex += routeDirection;
+        movementState = 'pause';
+        pauseEndsAt = sequenceTime + 2.2 + Math.random() * 2.4;
+      } else {
+        direction.copy(toTarget).multiplyScalar(1 / distance);
+        const rhythm = 0.97 + Math.sin(elapsedTime * 0.43 + waypointIndex) * 0.03;
+        wizard.position.addScaledVector(
+          direction,
+          Math.min(currentSpeed * rhythm * deltaTime, distance),
+        );
+        const surface = terrainSurfaceAt(terrain, wizard.position.x, wizard.position.z);
+        if (surface) wizard.position.y = surface.point.y + groundClearance;
+        const targetYaw = Math.atan2(direction.x, direction.z);
+        targetQuaternion.setFromAxisAngle(upAxis, targetYaw);
+        wizard.quaternion.slerp(targetQuaternion, 1 - Math.exp(-deltaTime * 2.8));
+      }
+    }
+
+    visual.position.y = (Math.sin(elapsedTime * 2.05) + 1) * 0.009 * movementWeight;
+    visual.rotation.z = Math.sin(elapsedTime * 1.42 + 0.5) * 0.009 * movementWeight;
+    visual.rotation.x = Math.sin(elapsedTime * 1.08) * 0.004 * movementWeight;
+  }
+
+  console.info('[WIZARD NPC] GLB carregado sem rig/animações.', {
+    position: wizard.position.toArray(),
+    scale: uniformScale,
+    meshes: meshCount,
+    materials: [...materials].map((material) => material.name || '(sem nome)'),
+    animations: gltf.animations.length,
+    waypoints: waypoints.map((waypoint) => [waypoint.x, waypoint.surface.point.y, waypoint.z]),
+  });
+
+  return { wizard, updateWizardNpc };
+}
+
 function sampleTerrainOutline(terrain, center, segments = 112) {
   terrain.updateMatrixWorld(true);
   const radii = new Float32Array(segments);
@@ -518,18 +868,72 @@ function createTerrainCoastRibbon(name, terrain, center, radii, offsets, predica
   return mesh;
 }
 
-function createCoastalTransition(terrain, worldBounds, oceanY) {
+function sampleTerrainFootprint(terrain, center, halfX, halfZ, yaw) {
+  const cosYaw = Math.cos(yaw);
+  const sinYaw = Math.sin(yaw);
+  const samples = [
+    [0, 0],
+    [halfX, 0], [-halfX, 0],
+    [0, halfZ], [0, -halfZ],
+    [halfX, halfZ], [halfX, -halfZ],
+    [-halfX, halfZ], [-halfX, -halfZ],
+    [halfX * 0.5, halfZ * 0.5],
+    [halfX * 0.5, -halfZ * 0.5],
+    [-halfX * 0.5, halfZ * 0.5],
+    [-halfX * 0.5, -halfZ * 0.5],
+  ];
+  const heights = samples.map(([localX, localZ]) => terrainHeightAt(
+    terrain,
+    center.x + localX * cosYaw + localZ * sinYaw,
+    center.z - localX * sinYaw + localZ * cosYaw,
+  )).sort((a, b) => a - b);
+  return {
+    heights,
+    supportY: heights[Math.floor(heights.length * 0.5)],
+  };
+}
+
+function createPrecomputedTerrainRibbon(name, data, material) {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(data.positions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(data.uvs, 2));
+  geometry.setIndex(data.indices);
+  geometry.computeVertexNormals();
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = name;
+  mesh.receiveShadow = true;
+  mesh.renderOrder = 1;
+  return mesh;
+}
+
+async function createCoastalTransition(terrain, worldBounds, oceanY) {
   const coast = new THREE.Group();
   coast.name = 'TamarindPainterlyCoast';
-  const center = worldBounds.getCenter(new THREE.Vector3());
+  let precomputed = null;
+  try {
+    const response = await fetch(COAST_DATA_URL);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    precomputed = await response.json();
+  } catch (error) {
+    console.warn('[Tamarind] Dados costeiros pré-calculados indisponíveis; usando fallback.', error);
+  }
+  const center = precomputed
+    ? new THREE.Vector3().fromArray(precomputed.center)
+    : worldBounds.getCenter(new THREE.Vector3());
   center.y = oceanY;
-  const radii = sampleTerrainOutline(terrain, center);
+  const radii = precomputed ? Float32Array.from(precomputed.radii) : sampleTerrainOutline(terrain, center);
   const foamInnerWidths = new Float32Array(radii.length);
   const foamOuterWidths = new Float32Array(radii.length);
   const foamStrengths = new Float32Array(radii.length);
   const shallowInnerWidths = new Float32Array(radii.length);
   const shallowOuterWidths = new Float32Array(radii.length);
-  for (let index = 0; index < radii.length; index += 1) {
+  if (precomputed) {
+    foamInnerWidths.set(precomputed.foamInner);
+    foamOuterWidths.set(precomputed.foamOuter);
+    foamStrengths.set(precomputed.foamStrength);
+    shallowInnerWidths.set(precomputed.shallowInner);
+    shallowOuterWidths.set(precomputed.shallowOuter);
+  } else for (let index = 0; index < radii.length; index += 1) {
     const angle = (index / radii.length) * Math.PI * 2;
     const sampleRadius = radii[index] - 2.2;
     const surface = terrainSurfaceAt(
@@ -635,24 +1039,30 @@ function createCoastalTransition(terrain, worldBounds, oceanY) {
   foam.renderOrder = 3;
   coast.add(foam);
 
-  const beach = createTerrainCoastRibbon(
-    'TamarindGentleBeach', terrain, center, radii, { outer: 1.05, inner: 3.5 },
-    (slope, rise) => slope > 0.72 && rise < 2.6,
-    new THREE.MeshStandardMaterial({
-      color: '#c99d69', roughness: 0.92, metalness: 0, transparent: true, opacity: 0.72,
-      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
-    }),
-  );
+  const beachMaterial = new THREE.MeshStandardMaterial({
+    color: '#c99d69', roughness: 0.92, metalness: 0, transparent: true, opacity: 0.72,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  });
+  const beach = precomputed
+    ? createPrecomputedTerrainRibbon('TamarindGentleBeach', precomputed.beach, beachMaterial)
+    : createTerrainCoastRibbon(
+      'TamarindGentleBeach', terrain, center, radii, { outer: 1.05, inner: 3.5 },
+      (slope, rise) => slope > 0.72 && rise < 2.6,
+      beachMaterial,
+    );
   coast.add(beach);
 
-  const wetShore = createTerrainCoastRibbon(
-    'TamarindWetShore', terrain, center, radii, { outer: 0.25, inner: 1.2 },
-    (slope, rise) => slope > 0.52 && rise < 3.8,
-    new THREE.MeshStandardMaterial({
-      color: '#604b43', roughness: 0.68, metalness: 0.02, transparent: true, opacity: 0.58,
-      polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
-    }),
-  );
+  const wetShoreMaterial = new THREE.MeshStandardMaterial({
+    color: '#604b43', roughness: 0.68, metalness: 0.02, transparent: true, opacity: 0.58,
+    polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
+  });
+  const wetShore = precomputed
+    ? createPrecomputedTerrainRibbon('TamarindWetShore', precomputed.wetShore, wetShoreMaterial)
+    : createTerrainCoastRibbon(
+      'TamarindWetShore', terrain, center, radii, { outer: 0.25, inner: 1.2 },
+      (slope, rise) => slope > 0.52 && rise < 3.8,
+      wetShoreMaterial,
+    );
   coast.add(wetShore);
 
   coast.userData.update = (elapsed) => {
@@ -664,19 +1074,27 @@ function createCoastalTransition(terrain, worldBounds, oceanY) {
 }
 
 async function loadTecnomagoHouse(terrain) {
-  const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync(TECNOMAGO_HOUSE_URL);
+  const gltf = await loadGlbOnce(TECNOMAGO_HOUSE_URL, 'Casa do Tecnomago');
   const source = gltf.scene;
   source.updateMatrixWorld(true);
 
   const bounds = new THREE.Box3().setFromObject(source);
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
-  const targetWidth = 33;
+  const targetWidth = 19.490625;
   const uniformScale = targetWidth / Math.max(size.x, size.z, 0.0001);
-  const target = new THREE.Vector3(-45, 0, -3);
-  const yaw = 1.42;
-  target.y = terrainHeightAt(terrain, target.x, target.z);
+  const target = new THREE.Vector3(-38.5, 0, 4);
+  const yaw = -1.00;
+  const footprintX = size.x * uniformScale * 0.42;
+  const footprintZ = size.z * uniformScale * 0.42;
+  const footprintSupport = sampleTerrainFootprint(
+    terrain,
+    target,
+    footprintX,
+    footprintZ,
+    yaw,
+  );
+  target.y = footprintSupport.supportY;
 
   const scaledCenter = center.clone().multiplyScalar(uniformScale);
   scaledCenter.applyAxisAngle(THREE.Object3D.DEFAULT_UP, yaw);
@@ -687,7 +1105,7 @@ async function loadTecnomagoHouse(terrain) {
   houseGroup.rotation.y = yaw;
   houseGroup.position.set(
     target.x - scaledCenter.x,
-    target.y - bounds.min.y * uniformScale - 0.32,
+    target.y - bounds.min.y * uniformScale + 0.02,
     target.z - scaledCenter.z,
   );
   houseGroup.add(source);
@@ -699,25 +1117,52 @@ async function loadTecnomagoHouse(terrain) {
     object.frustumCulled = true;
   });
 
-  console.info('[Tamarind] Casa do Tecnomago carregada.', {
+  const accessGroup = new THREE.Group();
+  accessGroup.name = 'TecnomagoEntranceAccess';
+  const entranceDirection = new THREE.Vector2(Math.cos(yaw), -Math.sin(yaw));
+  const accessYaw = Math.atan2(entranceDirection.x, entranceDirection.y);
+  const stepGeometry = new THREE.BoxGeometry(1.75, 0.16, 0.82);
+  const stepMaterial = new THREE.MeshStandardMaterial({
+    color: '#755b45',
+    roughness: 0.96,
+    metalness: 0,
+  });
+  for (let index = 0; index < 4; index += 1) {
+    const distance = 10.4 + index * 1.25;
+    const x = target.x + entranceDirection.x * distance;
+    const z = target.z + entranceDirection.y * distance;
+    const surface = terrainSurfaceAt(terrain, x, z);
+    if (!surface) continue;
+    const step = new THREE.Mesh(stepGeometry, stepMaterial);
+    step.name = `TecnomagoEntranceStep_${index + 1}`;
+    step.position.set(x, surface.point.y + 0.03, z);
+    step.rotation.y = accessYaw;
+    step.castShadow = false;
+    step.receiveShadow = true;
+    accessGroup.add(step);
+  }
+  houseGroup.userData.entranceAccess = accessGroup;
+
+  console.info('[Tamarind] Casa do Tecnomago carregada.', JSON.stringify({
     position: houseGroup.position.toArray(),
     rotationY: yaw,
     scale: uniformScale,
+    terrainSupportY: target.y,
+    supportHeights: footprintSupport.heights,
     triangles: 639968,
-  });
+  }));
   return houseGroup;
 }
 
 async function loadArchitectureHouse(terrain) {
-  const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync(ARCHITECTURE_HOUSE_URL);
+  const gltf = await loadGlbOnce(ARCHITECTURE_HOUSE_URL, 'Coliseu 3D/Arquitetura');
   const source = gltf.scene;
   source.updateMatrixWorld(true);
 
   const bounds = new THREE.Box3().setFromObject(source);
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
-  const targetWidth = 16.5;
+  const targetWidth = 15.5;
   const uniformScale = targetWidth / Math.max(size.x, size.z, 0.0001);
   const target = new THREE.Vector3(10, 0, 33.5);
   const yaw = -1.05;
@@ -769,14 +1214,13 @@ async function loadArchitectureHouse(terrain) {
     rotationY: yaw,
     scale: uniformScale,
     supportHeights,
-    triangles: 770098,
+    triangles: 498604,
   });
   return architectureGroup;
 }
 
 async function loadAppsBasilica(terrain) {
-  const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync(APPS_BASILICA_URL);
+  const gltf = await loadGlbOnce(APPS_BASILICA_URL, 'Basílica Apps');
   const source = gltf.scene;
   source.updateMatrixWorld(true);
 
@@ -840,8 +1284,7 @@ async function loadAppsBasilica(terrain) {
 }
 
 async function loadOrientalPagoda(terrain) {
-  const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync(TEMPLE_URL);
+  const gltf = await loadGlbOnce(TEMPLE_URL, 'templo oriental');
   const source = gltf.scene;
   source.updateMatrixWorld(true);
 
@@ -900,8 +1343,7 @@ async function loadOrientalPagoda(terrain) {
 }
 
 async function loadInstancedTrees(terrain, backgroundPlacements = []) {
-  const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync(TREE_URL);
+  const gltf = await loadGlbOnce(TREE_URL, 'árvores');
   const source = gltf.scene;
   source.updateMatrixWorld(true);
 
@@ -959,7 +1401,21 @@ async function loadInstancedTrees(terrain, backgroundPlacements = []) {
   const dummy = new THREE.Object3D();
   source.traverse((object) => {
     if (!object.isMesh || placements.length === 0) return;
+    // The source GLB contains LOD0 and LOD1 in the same scene. Instancing both
+    // stacked the foliage versions and repeated the boxy rose-bush ground
+    // clusters at every tree placement. Keep the complete detailed tree only.
+    if (!object.name.includes('LOD0')) return;
     const geometry = object.geometry.clone();
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    const visibleGroups = geometry.groups.filter((group) => (
+      materials[group.materialIndex]?.name !== 'Rose Bush Leaves'
+    ));
+    if (geometry.groups.length > 0) {
+      geometry.clearGroups();
+      visibleGroups.forEach((group) => {
+        geometry.addGroup(group.start, group.count, group.materialIndex);
+      });
+    }
     geometry.applyMatrix4(object.matrixWorld);
     geometry.applyMatrix4(normalize);
     const instanced = new THREE.InstancedMesh(geometry, object.material, placements.length);
@@ -982,6 +1438,7 @@ async function loadInstancedTrees(terrain, backgroundPlacements = []) {
   console.info('[Tamarind] Vegetação instanciada carregada.', {
     instances: placements.length,
     sourceMeshes: vegetation.children.length,
+    removedArtificialPatches: 'LOD1 + Rose Bush Leaves',
     targetHeight,
   });
   vegetation.userData.placements = placements.map(({ x, z }) => ({ x, z }));
@@ -1313,7 +1770,7 @@ function createSettlementHouse(template, x, y, z, yaw, scale) {
 async function createMedievalSettlement(terrain, oceanY) {
   const settlement = new THREE.Group();
   settlement.name = 'LightMedievalSettlement';
-  const houseSource = (await new GLTFLoader().loadAsync(SETTLEMENT_HOUSE_URL)).scene;
+  const houseSource = (await loadGlbOnce(SETTLEMENT_HOUSE_URL, 'casas da vila')).scene;
   houseSource.updateMatrixWorld(true);
   const houseBounds = new THREE.Box3().setFromObject(houseSource);
   const houseSize = houseBounds.getSize(new THREE.Vector3());
@@ -1333,8 +1790,6 @@ async function createMedievalSettlement(terrain, oceanY) {
     canvasRed: new THREE.MeshStandardMaterial({ color: '#8f4c3d', roughness: 0.9, side: THREE.DoubleSide }),
     window: new THREE.MeshStandardMaterial({ color: '#e1a15c', emissive: '#59280f', emissiveIntensity: 0.45 }),
     path: new THREE.MeshStandardMaterial({ color: '#7f705d', roughness: 1 }),
-    soil: new THREE.MeshStandardMaterial({ color: '#5d4932', roughness: 1 }),
-    crop: new THREE.MeshStandardMaterial({ color: '#64713a', roughness: 1 }),
   };
 
   const houses = [
@@ -1385,36 +1840,78 @@ async function createMedievalSettlement(terrain, oceanY) {
     [[-4, 11], [-9, 25], [-14, 40]],
     [[1, 12], [1, 27], [0, 42]],
   ];
-  const pathTransforms = [];
+  const pathStoneBatches = [[], [], []];
+  const pathVariation = (index, salt) => {
+    const value = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43758.5453;
+    return value - Math.floor(value);
+  };
+  let pathStoneIndex = 0;
   for (const line of pathLines) {
-    for (let segment = 0; segment < line.length - 1; segment += 1) {
-      const [ax, az] = line[segment];
-      const [bx, bz] = line[segment + 1];
-      const length = Math.hypot(bx - ax, bz - az);
-      const pieces = Math.max(2, Math.ceil(length / 2.8));
-      for (let i = 0; i < pieces; i += 1) {
-        const t = (i + 0.5) / pieces;
-        const x = THREE.MathUtils.lerp(ax, bx, t);
-        const z = THREE.MathUtils.lerp(az, bz, t);
-        if (Math.hypot(x - 10, z - 33.5) < 13) continue;
-        const surface = terrainSurfaceAt(terrain, x, z);
-        if (!surface || surface.normal.y < 0.64) continue;
-        pathTransforms.push({ x, y: surface.point.y + 0.025, z, yaw: Math.atan2(bx - ax, bz - az) });
-      }
+    const pathCurve = new THREE.CatmullRomCurve3(
+      line.map(([x, z]) => new THREE.Vector3(x, 0, z)),
+      false,
+      'centripetal',
+    );
+    const pieces = Math.max(3, Math.ceil(pathCurve.getLength() / 1.7));
+    for (let i = 0; i < pieces; i += 1) {
+      const stoneIndex = pathStoneIndex;
+      pathStoneIndex += 1;
+      if (pathVariation(stoneIndex, 1) < 0.12) continue;
+      const t = THREE.MathUtils.clamp(
+        (i + 0.5 + (pathVariation(stoneIndex, 2) - 0.5) * 0.42) / pieces,
+        0.04,
+        0.96,
+      );
+      const point = pathCurve.getPoint(t);
+      const tangent = pathCurve.getTangent(t);
+      const lateralOffset = (pathVariation(stoneIndex, 3) - 0.5) * 0.72;
+      const x = point.x - tangent.z * lateralOffset;
+      const z = point.z + tangent.x * lateralOffset;
+      if (x < -35 || x > 26 || z < -16 || z > 31) continue;
+      if (Math.hypot(x - 10, z - 33.5) < 13) continue;
+      const surface = terrainSurfaceAt(terrain, x, z);
+      if (!surface || surface.normal.y < 0.72) continue;
+      const variant = stoneIndex % pathStoneBatches.length;
+      pathStoneBatches[variant].push({
+        x,
+        y: surface.point.y + 0.035,
+        z,
+        yaw: Math.atan2(tangent.x, tangent.z) + (pathVariation(stoneIndex, 4) - 0.5) * 0.48,
+        scaleX: 0.82 + pathVariation(stoneIndex, 5) * 0.42,
+        scaleY: 0.72 + pathVariation(stoneIndex, 6) * 0.34,
+        scaleZ: 0.58 + pathVariation(stoneIndex, 7) * 0.38,
+      });
     }
   }
-  const pathMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1.65, 0.12, 1), materials.path, pathTransforms.length);
+  const pathStoneGeometries = [
+    new THREE.CylinderGeometry(0.72, 0.78, 0.14, 6),
+    new THREE.CylinderGeometry(0.68, 0.76, 0.12, 7),
+    new THREE.CylinderGeometry(0.76, 0.7, 0.16, 8),
+  ];
+  const pathStoneMaterials = ['#756c60', '#82735f', '#665f58'].map((color) => (
+    new THREE.MeshStandardMaterial({ color, roughness: 1, metalness: 0 })
+  ));
   const pathDummy = new THREE.Object3D();
-  pathTransforms.forEach((item, index) => {
-    pathDummy.position.set(item.x, item.y, item.z);
-    pathDummy.rotation.set(0, item.yaw, 0);
-    pathDummy.scale.setScalar(1);
-    pathDummy.updateMatrix();
-    pathMesh.setMatrixAt(index, pathDummy.matrix);
+  pathStoneBatches.forEach((batch, variant) => {
+    const pathMesh = new THREE.InstancedMesh(
+      pathStoneGeometries[variant],
+      pathStoneMaterials[variant],
+      batch.length,
+    );
+    pathMesh.name = `CentralIrregularStonePath_${variant}`;
+    batch.forEach((item, index) => {
+      pathDummy.position.set(item.x, item.y, item.z);
+      pathDummy.rotation.set(0, item.yaw, 0);
+      pathDummy.scale.set(item.scaleX, item.scaleY, item.scaleZ);
+      pathDummy.updateMatrix();
+      pathMesh.setMatrixAt(index, pathDummy.matrix);
+    });
+    pathMesh.instanceMatrix.needsUpdate = true;
+    pathMesh.receiveShadow = true;
+    pathMesh.frustumCulled = true;
+    settlement.add(pathMesh);
   });
-  pathMesh.instanceMatrix.needsUpdate = true;
-  pathMesh.receiveShadow = true;
-  settlement.add(pathMesh);
+  const pathStoneCount = pathStoneBatches.reduce((total, batch) => total + batch.length, 0);
 
   const supportedCoast = [];
   for (let z = 34; z <= 68; z += 1) {
@@ -1463,27 +1960,10 @@ async function createMedievalSettlement(terrain, oceanY) {
   stakes.instanceMatrix.needsUpdate = true;
   settlement.add(stakes);
 
-  const farmCenter = { x: -25, z: 27 };
-  const farmSurface = terrainSurfaceAt(terrain, farmCenter.x, farmCenter.z);
-  if (farmSurface?.normal.y > 0.7) {
-    for (let row = -2; row <= 2; row += 1) {
-      const soil = new THREE.Mesh(new THREE.BoxGeometry(8, 0.12, 0.85), materials.soil);
-      soil.position.set(farmCenter.x, terrainHeightAt(terrain, farmCenter.x, farmCenter.z + row * 1.25) + 0.02, farmCenter.z + row * 1.25);
-      soil.rotation.y = 0.16;
-      soil.receiveShadow = true;
-      settlement.add(soil);
-      const crop = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.28, 0.28), materials.crop);
-      crop.position.copy(soil.position);
-      crop.position.y += 0.2;
-      crop.rotation.y = soil.rotation.y;
-      settlement.add(crop);
-    }
-  }
-
   console.info('[Tamarind] Camada medieval leve criada.', {
     houses: houses.length,
     houseMeshes: houseSource.children.length,
-    pathInstances: pathTransforms.length,
+    pathInstances: pathStoneCount,
     palisadeStakes: stakeTransforms.length,
   });
   return settlement;
@@ -1517,13 +1997,13 @@ function findBackgroundCastleSite(terrain) {
 
 async function loadBackgroundCastle(terrain) {
   const site = findBackgroundCastleSite(terrain);
-  const source = (await new GLTFLoader().loadAsync(BACKGROUND_CASTLE_URL)).scene;
+  const source = (await loadGlbOnce(BACKGROUND_CASTLE_URL, 'castelo de fundo')).scene;
   source.updateMatrixWorld(true);
 
   const bounds = new THREE.Box3().setFromObject(source);
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
-  const targetWidth = 16;
+  const targetWidth = 20;
   const uniformScale = targetWidth / Math.max(size.x, size.z, 0.0001);
   const yaw = 0.06;
   const halfBaseX = size.x * uniformScale * 0.42;
@@ -1678,7 +2158,330 @@ function createWindmillPair(terrain) {
   return windmills;
 }
 
+function createProceduralMillPond(terrain) {
+  const pond = new THREE.Group();
+  pond.name = 'ProceduralMillPond';
+  const center = new THREE.Vector2(-24, -17);
+  const yaw = -0.22;
+  const cosYaw = Math.cos(yaw);
+  const sinYaw = Math.sin(yaw);
+  const contour = [
+    [-12.8, -1.0], [-11.4, -3.8], [-8.6, -5.8], [-5.2, -6.4],
+    [-2.7, -5.6], [-0.2, -7.0], [3.0, -6.2], [4.8, -4.4],
+    [8.8, -4.0], [11.5, -1.8], [12.2, 0.8], [9.0, 2.1],
+    [10.5, 4.3], [6.8, 5.8], [3.6, 5.0], [1.8, 7.3],
+    [-1.8, 6.6], [-3.8, 4.8], [-7.6, 5.7], [-10.8, 3.8],
+    [-9.4, 1.8], [-12.4, 1.0],
+  ];
+  const worldPoint = ([localX, localZ], factor = 1) => ({
+    x: center.x + localX * factor * cosYaw + localZ * factor * sinYaw,
+    z: center.y - localX * factor * sinYaw + localZ * factor * cosYaw,
+  });
+  const createFanGeometry = (factor, lift) => {
+    const positions = [center.x, terrainHeightAt(terrain, center.x, center.y) + lift, center.y];
+    const indices = [];
+    contour.forEach((point) => {
+      const world = worldPoint(point, factor);
+      positions.push(world.x, terrainHeightAt(terrain, world.x, world.z) + lift, world.z);
+    });
+    for (let index = 0; index < contour.length; index += 1) {
+      indices.push(0, index + 1, ((index + 1) % contour.length) + 1);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    return geometry;
+  };
+
+  const waterMaterial = new THREE.MeshPhysicalMaterial({
+    color: '#3d7b70',
+    roughness: 0.64,
+    metalness: 0,
+    clearcoat: 0.16,
+    clearcoatRoughness: 0.72,
+    transparent: true,
+    opacity: 0.82,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  waterMaterial.onBeforeCompile = (shader) => {
+    shader.uniforms.uPondTime = { value: 0 };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uPondTime;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        transformed.y += (
+          sin(position.x * 1.35 + uPondTime * 0.48)
+          + cos(position.z * 1.12 - uPondTime * 0.37)
+        ) * 0.014;`);
+    waterMaterial.userData.shader = shader;
+  };
+  const water = new THREE.Mesh(createFanGeometry(0.95, 0.052), waterMaterial);
+  water.name = 'MillPondShallowWater';
+  water.renderOrder = 2;
+  pond.add(water);
+
+  const deepWater = new THREE.Mesh(
+    createFanGeometry(0.61, 0.061),
+    new THREE.MeshStandardMaterial({
+      color: '#173f46',
+      roughness: 0.76,
+      transparent: true,
+      opacity: 0.56,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+  );
+  deepWater.name = 'MillPondDeepCenter';
+  deepWater.renderOrder = 3;
+  pond.add(deepWater);
+
+  const marginPositions = [];
+  const marginIndices = [];
+  contour.forEach((point, index) => {
+    const widthVariation = 0.05 + ((index * 5) % 7) * 0.018;
+    for (const factor of [0.9 - widthVariation * 0.28, 1.14 + widthVariation]) {
+      const world = worldPoint(point, factor);
+      marginPositions.push(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.022, world.z);
+    }
+  });
+  for (let index = 0; index < contour.length; index += 1) {
+    const next = (index + 1) % contour.length;
+    const inner = index * 2;
+    const outer = inner + 1;
+    const nextInner = next * 2;
+    const nextOuter = nextInner + 1;
+    marginIndices.push(inner, outer, nextInner, nextInner, outer, nextOuter);
+  }
+  const marginGeometry = new THREE.BufferGeometry();
+  marginGeometry.setAttribute('position', new THREE.Float32BufferAttribute(marginPositions, 3));
+  marginGeometry.setIndex(marginIndices);
+  marginGeometry.computeVertexNormals();
+  const margin = new THREE.Mesh(
+    marginGeometry,
+    new THREE.MeshStandardMaterial({
+      color: '#3f382d',
+      roughness: 1,
+      transparent: true,
+      opacity: 0.78,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+  );
+  margin.name = 'MillPondWetMargin';
+  margin.renderOrder = 1;
+  pond.add(margin);
+
+  const detailDummy = new THREE.Object3D();
+  const mudPatchCount = 22;
+  const mudPatches = new THREE.InstancedMesh(
+    new THREE.CircleGeometry(0.82, 9),
+    new THREE.MeshStandardMaterial({
+      color: '#342f27',
+      roughness: 1,
+      transparent: true,
+      opacity: 0.62,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+    mudPatchCount,
+  );
+  mudPatches.name = 'MillPondIrregularMudPatches';
+  for (let index = 0; index < mudPatchCount; index += 1) {
+    const contourIndex = (index * 7 + 3) % contour.length;
+    const nextIndex = (contourIndex + 1) % contour.length;
+    const mix = ((index * 37) % 100) / 100;
+    const localPoint = [
+      THREE.MathUtils.lerp(contour[contourIndex][0], contour[nextIndex][0], mix),
+      THREE.MathUtils.lerp(contour[contourIndex][1], contour[nextIndex][1], mix),
+    ];
+    const world = worldPoint(localPoint, 1.01 + (index % 5) * 0.035);
+    detailDummy.position.set(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.026, world.z);
+    detailDummy.rotation.set(-Math.PI / 2, 0, index * 1.91);
+    detailDummy.scale.set(0.8 + (index % 6) * 0.22, 0.7 + (index % 4) * 0.13, 1);
+    detailDummy.updateMatrix();
+    mudPatches.setMatrixAt(index, detailDummy.matrix);
+  }
+  mudPatches.instanceMatrix.needsUpdate = true;
+  mudPatches.renderOrder = 1;
+  pond.add(mudPatches);
+
+  const islandPoints = [
+    [-3.8, -0.9, 1.5, 0.85],
+    [3.3, 1.8, 1.15, 0.7],
+    [6.5, -1.5, 0.82, 0.56],
+    [-7.2, 2.0, 0.92, 0.62],
+  ];
+  const dryIslands = new THREE.InstancedMesh(
+    new THREE.CylinderGeometry(1, 1.08, 0.12, 9),
+    new THREE.MeshStandardMaterial({ color: '#57503a', roughness: 1 }),
+    islandPoints.length,
+  );
+  dryIslands.name = 'MillPondDryIslands';
+  islandPoints.forEach(([localX, localZ, scaleX, scaleZ], index) => {
+    const world = worldPoint([localX, localZ]);
+    detailDummy.position.set(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.07, world.z);
+    detailDummy.rotation.set(0, index * 1.37, 0);
+    detailDummy.scale.set(scaleX, 1, scaleZ);
+    detailDummy.updateMatrix();
+    dryIslands.setMatrixAt(index, detailDummy.matrix);
+  });
+  dryIslands.instanceMatrix.needsUpdate = true;
+  dryIslands.receiveShadow = true;
+  pond.add(dryIslands);
+
+  const reedCount = 156;
+  const reedGeometry = new THREE.CylinderGeometry(0.035, 0.055, 1, 5);
+  const reedMaterial = new THREE.MeshStandardMaterial({ color: '#58663b', roughness: 1 });
+  const reeds = new THREE.InstancedMesh(reedGeometry, reedMaterial, reedCount);
+  reeds.name = 'MillPondReeds';
+  const reedDummy = new THREE.Object3D();
+  for (let index = 0; index < reedCount; index += 1) {
+    const cluster = Math.floor(index / 6);
+    const contourIndex = (cluster * 5 + (index % 3)) % contour.length;
+    const nextIndex = (contourIndex + 1) % contour.length;
+    const mix = (index * 0.381966) % 1;
+    const localPoint = [
+      THREE.MathUtils.lerp(contour[contourIndex][0], contour[nextIndex][0], mix),
+      THREE.MathUtils.lerp(contour[contourIndex][1], contour[nextIndex][1], mix),
+    ];
+    const factor = 0.87 + ((cluster * 7 + index) % 15) * 0.022;
+    const world = worldPoint(localPoint, factor);
+    const height = 0.52 + ((index * 11) % 10) * 0.07;
+    reedDummy.position.set(
+      world.x + Math.sin(index * 2.31) * (0.28 + (index % 4) * 0.11),
+      terrainHeightAt(terrain, world.x, world.z) + height * 0.46,
+      world.z + Math.cos(index * 1.77) * (0.25 + (index % 5) * 0.09),
+    );
+    reedDummy.rotation.set(Math.sin(index) * 0.05, index * 1.43, Math.cos(index * 0.7) * 0.045);
+    reedDummy.scale.set(0.82 + (index % 3) * 0.11, height, 0.82 + ((index + 1) % 3) * 0.1);
+    reedDummy.updateMatrix();
+    reeds.setMatrixAt(index, reedDummy.matrix);
+  }
+  reeds.instanceMatrix.needsUpdate = true;
+  reeds.castShadow = false;
+  reeds.receiveShadow = true;
+  pond.add(reeds);
+
+  const grassCount = 78;
+  const marshGrass = new THREE.InstancedMesh(
+    new THREE.ConeGeometry(0.16, 0.72, 5),
+    new THREE.MeshStandardMaterial({ color: '#46553a', roughness: 1 }),
+    grassCount,
+  );
+  marshGrass.name = 'MillPondLowGrass';
+  for (let index = 0; index < grassCount; index += 1) {
+    const contourIndex = (Math.floor(index / 4) * 5 + index) % contour.length;
+    const nextIndex = (contourIndex + 1) % contour.length;
+    const mix = ((index * 29) % 100) / 100;
+    const localPoint = [
+      THREE.MathUtils.lerp(contour[contourIndex][0], contour[nextIndex][0], mix),
+      THREE.MathUtils.lerp(contour[contourIndex][1], contour[nextIndex][1], mix),
+    ];
+    const world = worldPoint(localPoint, 1.02 + (index % 7) * 0.025);
+    const height = 0.38 + (index % 6) * 0.08;
+    detailDummy.position.set(
+      world.x + Math.sin(index * 1.7) * 0.34,
+      terrainHeightAt(terrain, world.x, world.z) + height * 0.47,
+      world.z + Math.cos(index * 2.1) * 0.3,
+    );
+    detailDummy.rotation.set(Math.sin(index) * 0.08, index * 1.13, Math.cos(index) * 0.07);
+    detailDummy.scale.set(0.72 + (index % 4) * 0.12, height, 0.72 + ((index + 2) % 4) * 0.1);
+    detailDummy.updateMatrix();
+    marshGrass.setMatrixAt(index, detailDummy.matrix);
+  }
+  marshGrass.instanceMatrix.needsUpdate = true;
+  marshGrass.castShadow = false;
+  marshGrass.receiveShadow = true;
+  pond.add(marshGrass);
+
+  const stoneCount = 54;
+  const stones = new THREE.InstancedMesh(
+    new THREE.IcosahedronGeometry(0.32, 0),
+    new THREE.MeshStandardMaterial({ color: '#524e45', roughness: 1 }),
+    stoneCount,
+  );
+  stones.name = 'MillPondMarginStones';
+  for (let index = 0; index < stoneCount; index += 1) {
+    const contourIndex = (index * 5 + 2) % contour.length;
+    const factor = 1.01 + ((index * 3) % 7) * 0.022;
+    const world = worldPoint(contour[contourIndex], factor);
+    reedDummy.position.set(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.12, world.z);
+    reedDummy.rotation.set(index * 0.17, index * 1.21, index * 0.09);
+    reedDummy.scale.set(0.75 + (index % 4) * 0.13, 0.45 + (index % 3) * 0.1, 0.8 + ((index + 2) % 4) * 0.11);
+    reedDummy.updateMatrix();
+    stones.setMatrixAt(index, reedDummy.matrix);
+  }
+  stones.instanceMatrix.needsUpdate = true;
+  stones.castShadow = false;
+  stones.receiveShadow = true;
+  pond.add(stones);
+
+  const leafCount = 36;
+  const floatingLeaves = new THREE.InstancedMesh(
+    new THREE.CircleGeometry(0.24, 8),
+    new THREE.MeshStandardMaterial({ color: '#4d693f', roughness: 0.9, side: THREE.DoubleSide }),
+    leafCount,
+  );
+  floatingLeaves.name = 'MillPondFloatingLeaves';
+  for (let index = 0; index < leafCount; index += 1) {
+    const point = contour[(index * 3) % contour.length];
+    const factor = 0.18 + ((index * 5) % 13) * 0.052;
+    const world = worldPoint(point, factor);
+    reedDummy.position.set(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.078, world.z);
+    reedDummy.rotation.set(-Math.PI / 2, 0, index * 1.17);
+    reedDummy.scale.setScalar(0.7 + (index % 5) * 0.12);
+    reedDummy.updateMatrix();
+    floatingLeaves.setMatrixAt(index, reedDummy.matrix);
+  }
+  floatingLeaves.instanceMatrix.needsUpdate = true;
+  floatingLeaves.castShadow = false;
+  floatingLeaves.receiveShadow = true;
+  pond.add(floatingLeaves);
+
+  const branchCount = 13;
+  const branches = new THREE.InstancedMesh(
+    new THREE.CylinderGeometry(0.055, 0.075, 1.4, 6),
+    new THREE.MeshStandardMaterial({ color: '#49382b', roughness: 1 }),
+    branchCount,
+  );
+  branches.name = 'MillPondDriftwood';
+  for (let index = 0; index < branchCount; index += 1) {
+    const point = contour[(index * 4 + 1) % contour.length];
+    const world = worldPoint(point, 0.5 + (index % 7) * 0.065);
+    reedDummy.position.set(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.09, world.z);
+    reedDummy.rotation.set(0, index * 1.31, Math.PI / 2 + Math.sin(index) * 0.08);
+    reedDummy.scale.set(0.7 + index * 0.08, 0.72 + (index % 2) * 0.22, 0.7);
+    reedDummy.updateMatrix();
+    branches.setMatrixAt(index, reedDummy.matrix);
+  }
+  branches.instanceMatrix.needsUpdate = true;
+  branches.castShadow = false;
+  branches.receiveShadow = true;
+  pond.add(branches);
+
+  pond.userData.update = (elapsed) => {
+    waterMaterial.opacity = 0.81 + Math.sin(elapsed * 0.42) * 0.018;
+    const shader = waterMaterial.userData.shader;
+    if (shader?.uniforms?.uPondTime) shader.uniforms.uPondTime.value = elapsed;
+  };
+  console.info('[Tamarind] Brejo procedural leve criado.', {
+    center: center.toArray(),
+    waterTriangles: contour.length * 2,
+    marginTriangles: contour.length * 2,
+    reedInstances: reedCount,
+    lowGrassInstances: grassCount,
+    stoneInstances: stoneCount,
+    floatingLeaves: leafCount,
+    driftwood: branchCount,
+    mudPatches: mudPatchCount,
+    dryIslands: islandPoints.length,
+  });
+  return pond;
+}
+
 export async function createWorld3d() {
+  getMetrics().sceneCreationStartedMs = performance.now() - getMetrics().startedAt;
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#aebdca');
   scene.fog = new THREE.Fog('#aebdca', 155, 285);
@@ -1711,24 +2514,7 @@ export async function createWorld3d() {
 
   const { terrainGroup, worldBounds, worldSize } = await loadMasterTerrain();
   world.add(terrainGroup);
-
-  const tecnomagoHouse = await loadTecnomagoHouse(terrainGroup);
-  world.add(tecnomagoHouse);
-
-  const architectureHouse = await loadArchitectureHouse(terrainGroup);
-  world.add(architectureHouse);
-
-  const appsBasilica = await loadAppsBasilica(terrainGroup);
-  world.add(appsBasilica);
-
-  const pagoda = await loadOrientalPagoda(terrainGroup);
-  world.add(pagoda);
-
-  const { castle: backgroundCastle, treePlacements: castleTreePlacements } = await loadBackgroundCastle(terrainGroup);
-  world.add(backgroundCastle);
-
-  const vegetation = await loadInstancedTrees(terrainGroup, castleTreePlacements);
-  world.add(vegetation);
+  const landmarks = {};
 
   const oceanMaterial = new THREE.MeshPhysicalMaterial({
     color: '#397f9c',
@@ -1769,50 +2555,145 @@ export async function createWorld3d() {
   ocean.receiveShadow = true;
   world.add(ocean);
 
-  const coast = createCoastalTransition(terrainGroup, worldBounds, ocean.position.y);
-  world.add(coast);
+  let secondaryLoadPromise = null;
+  const startSecondaryLoad = ({ onAssetLoaded, onPhaseComplete } = {}) => {
+    if (secondaryLoadPromise) return secondaryLoadPromise;
 
-  const harbor = createHarbor(terrainGroup, ocean.position.y);
-  world.add(harbor);
+    secondaryLoadPromise = (async () => {
+      const notify = (key, object) => onAssetLoaded?.({ key, object, landmarks });
+      const addWorldAsset = (key, object) => {
+        world.add(object);
+        notify(key, object);
+        return object;
+      };
 
-  const settlement = await createMedievalSettlement(terrainGroup, ocean.position.y);
-  world.add(settlement);
+      const samplerStartedAt = performance.now();
+      terrainGroup.userData.surfaceSampler = await runWhenIdle(() => (
+        createTerrainSurfaceSampler(terrainGroup)
+      ));
+      getMetrics().terrainSamplerReadyMs = performance.now() - getMetrics().startedAt;
+      getMetrics().terrainSamplerBuildMs = performance.now() - samplerStartedAt;
+      console.info('[Tamarind] Índice espacial do terreno pronto.', {
+        buildMs: Math.round(getMetrics().terrainSamplerBuildMs),
+        triangles: terrainGroup.userData.surfaceSampler.triangleCount,
+        buckets: terrainGroup.userData.surfaceSampler.bucketCount,
+      });
 
-  const windmills = createWindmillPair(terrainGroup);
-  world.add(windmills);
+      console.time('[Tamarind] fase 2 — landmarks principais');
+      // Start only the three landmark downloads together. Parsing remains
+      // incremental so large GLBs cannot monopolize the main thread at once.
+      primeGlbDownload(TECNOMAGO_HOUSE_URL, 'Casa do Tecnomago', 'landmarks');
+      primeGlbDownload(APPS_BASILICA_URL, 'Basílica Apps', 'landmarks');
+      primeGlbDownload(ARCHITECTURE_HOUSE_URL, 'Coliseu 3D/Arquitetura', 'landmarks');
+      const tecnomagoHouse = await runWhenIdle(() => loadTecnomagoHouse(terrainGroup));
+      landmarks.tecnomago = tecnomagoHouse;
+      addWorldAsset('tecnomago', tecnomagoHouse);
+      if (tecnomagoHouse.userData.entranceAccess) {
+        world.add(tecnomagoHouse.userData.entranceAccess);
+      }
 
-  const goatAvoidObjects = [
-    tecnomagoHouse,
-    architectureHouse,
-    appsBasilica,
-    pagoda,
-    backgroundCastle,
-  ];
-  settlement.traverse((object) => {
-    if (object.name === 'DetailedSettlementHouse') goatAvoidObjects.push(object);
-  });
-  windmills.traverse((object) => {
-    if (object.name === 'MedievalWindmillModel') goatAvoidObjects.push(object);
-  });
-  const { goat, updateGoatWalk } = await loadRiggedGoat(terrainGroup, {
-    treePlacements: vegetation.userData.placements,
-    avoidObjects: goatAvoidObjects,
-  });
-  world.add(goat);
+      const appsBasilica = await runWhenIdle(() => loadAppsBasilica(terrainGroup));
+      landmarks.apps = appsBasilica;
+      addWorldAsset('apps', appsBasilica);
+
+      const architectureHouse = await runWhenIdle(() => loadArchitectureHouse(terrainGroup));
+      landmarks.architecture = architectureHouse;
+      addWorldAsset('architecture', architectureHouse);
+      console.timeEnd('[Tamarind] fase 2 — landmarks principais');
+      getMetrics().landmarksReadyMs = performance.now() - getMetrics().startedAt;
+      onPhaseComplete?.('landmarks', getMetrics().landmarksReadyMs);
+
+      console.time('[Tamarind] fase 3 — mundo habitado');
+      // Network work overlaps inside this phase while each parse/integration is
+      // yielded separately. Later phases never block the first rendered frame.
+      primeGlbDownload(TEMPLE_URL, 'templo oriental', 'inhabited');
+      primeGlbDownload(BACKGROUND_CASTLE_URL, 'castelo ao fundo', 'inhabited');
+      primeGlbDownload(SETTLEMENT_HOUSE_URL, 'casas da vila', 'inhabited');
+      primeGlbDownload(TREE_URL, 'árvores', 'inhabited');
+      primeGlbDownload(RIGGED_GOAT_URL, 'bode', 'inhabited');
+      primeGlbDownload(WIZARD_NPC_URL, 'mago NPC', 'inhabited');
+      const pagoda = await runWhenIdle(() => loadOrientalPagoda(terrainGroup));
+      addWorldAsset('pagoda', pagoda);
+
+      const castleResult = await runWhenIdle(() => loadBackgroundCastle(terrainGroup));
+      const backgroundCastle = addWorldAsset('castle', castleResult.castle);
+
+      const settlement = await runWhenIdle(() => createMedievalSettlement(terrainGroup, ocean.position.y));
+      addWorldAsset('settlement', settlement);
+
+      const vegetation = await runWhenIdle(() => (
+        loadInstancedTrees(terrainGroup, castleResult.treePlacements)
+      ));
+      addWorldAsset('vegetation', vegetation);
+
+      const windmills = await runWhenIdle(() => createWindmillPair(terrainGroup));
+      addWorldAsset('windmills', windmills);
+
+      const millPond = await runWhenIdle(() => createProceduralMillPond(terrainGroup));
+      addWorldAsset('millPond', millPond);
+
+      const goatAvoidObjects = [
+        tecnomagoHouse,
+        architectureHouse,
+        appsBasilica,
+        pagoda,
+        backgroundCastle,
+        millPond,
+      ];
+      settlement.traverse((object) => {
+        if (object.name === 'DetailedSettlementHouse') goatAvoidObjects.push(object);
+      });
+      windmills.traverse((object) => {
+        if (object.name === 'MedievalWindmillModel') goatAvoidObjects.push(object);
+      });
+      const goatResult = await runWhenIdle(() => loadRiggedGoat(terrainGroup, {
+        treePlacements: vegetation.userData.placements,
+        avoidObjects: goatAvoidObjects,
+      }));
+      addWorldAsset('goat', goatResult.goat);
+      const wizardResult = await runWhenIdle(() => loadWizardNpc(terrainGroup, tecnomagoHouse));
+      addWorldAsset('wizard', wizardResult.wizard);
+      console.timeEnd('[Tamarind] fase 3 — mundo habitado');
+      getMetrics().inhabitedReadyMs = performance.now() - getMetrics().startedAt;
+      onPhaseComplete?.('inhabited', getMetrics().inhabitedReadyMs);
+
+      console.time('[Tamarind] fase 4 — acabamento costeiro');
+      const harbor = await runWhenIdle(() => createHarbor(terrainGroup, ocean.position.y));
+      addWorldAsset('harbor', harbor);
+      const coast = await runWhenIdle(() => (
+        createCoastalTransition(terrainGroup, worldBounds, ocean.position.y)
+      ));
+      addWorldAsset('coast', coast);
+      console.timeEnd('[Tamarind] fase 4 — acabamento costeiro');
+      getMetrics().decorReadyMs = performance.now() - getMetrics().startedAt;
+      onPhaseComplete?.('decor', getMetrics().decorReadyMs);
+
+      return {
+        harbor,
+        coast,
+        millPond,
+        windmills,
+        settlement,
+        vegetation,
+        goat: goatResult.goat,
+        updateGoatWalk: goatResult.updateGoatWalk,
+        wizard: wizardResult.wizard,
+        updateWizardNpc: wizardResult.updateWizardNpc,
+        landmarks,
+      };
+    })();
+
+    return secondaryLoadPromise;
+  };
 
   return {
     scene,
     world,
     bear: null,
     water: ocean,
-    coast,
-    goat,
-    updateGoatWalk,
-    landmarks: {
-      tecnomago: tecnomagoHouse,
-      apps: appsBasilica,
-      architecture: architectureHouse,
-    },
+    coast: null,
+    landmarks,
+    startSecondaryLoad,
     cameraTarget: [0, worldSize.y * 0.2, 0],
     cameraPosition: [0, Math.max(82, worldSize.y * 3.8), 150],
   };

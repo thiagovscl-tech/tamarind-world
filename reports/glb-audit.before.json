@@ -1,0 +1,1270 @@
+[
+  {
+    "name": "ilha_texturizada.glb",
+    "active": true,
+    "bytes": 8201908,
+    "size": "7.82 MB",
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 266236,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 512,
+        "bytes": 449166
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 512,
+        "bytes": 285660
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
+  },
+  {
+    "name": "casanovatecnomago.glb",
+    "active": true,
+    "bytes": 4189632,
+    "size": "4.00 MB",
+    "meshes": 48,
+    "primitives": 48,
+    "triangles": 30994,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "Image_2",
+        "mimeType": "image/jpeg",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 32445
+      },
+      {
+        "name": "Image_3",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1015237
+      },
+      {
+        "name": "Image_1",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 855768
+      },
+      {
+        "name": "Image_0",
+        "mimeType": "image/jpeg",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 387096
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
+  },
+  {
+    "name": "basilica_texturizada.glb",
+    "active": true,
+    "bytes": 25784048,
+    "size": "24.59 MB",
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 948264,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 512,
+        "bytes": 519213
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 512,
+        "bytes": 326317
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
+  },
+  {
+    "name": "arquiteturaColiseu_texturizado.glb",
+    "active": true,
+    "bytes": 21312576,
+    "size": "20.33 MB",
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 770098,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 512,
+        "bytes": 482987
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 512,
+        "bytes": 303937
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
+  },
+  {
+    "name": "casteloSite.glb",
+    "active": true,
+    "bytes": 152911500,
+    "size": "145.83 MB",
+    "meshes": 18,
+    "primitives": 31,
+    "triangles": 1702890,
+    "materials": 11,
+    "textures": [
+      {
+        "name": "bq_Moss_Diffuse",
+        "mimeType": "image/jpeg",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 413238
+      },
+      {
+        "name": "bq_Moss_Diffuse000",
+        "mimeType": "image/jpeg",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 413238
+      },
+      {
+        "name": "japanese_stone_wall_nor_gl_8k",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 5718417
+      },
+      {
+        "name": "japanese_stone_wall_diff_1k",
+        "mimeType": "image/jpeg",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 469474
+      },
+      {
+        "name": "japanese_stone_wall_rough_8k",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1012252
+      },
+      {
+        "name": "Doors Windows_Normal",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 12343691
+      },
+      {
+        "name": "Doors Windows_BaseColor",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 10300729
+      },
+      {
+        "name": "Doors Windows_Metallic-Doors Windows_Roughness",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 3096295
+      },
+      {
+        "name": "rivetted-metal-1_bump",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 313605
+      },
+      {
+        "name": "rivetted-metal-1_diffuse",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 1924246
+      },
+      {
+        "name": "rivetted-metal-1_metal-rivetted-metal-1_smooth",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 7009080
+      },
+      {
+        "name": "concrete_floor_worn_001_nor_gl_16k",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 4776990
+      },
+      {
+        "name": "concrete_floor_worn_001_diff_1k",
+        "mimeType": "image/jpeg",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 141463
+      },
+      {
+        "name": "concrete_floor_worn_001_rough_1k",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 977196
+      },
+      {
+        "name": "clay_roof_tiles_02_nor_gl.png",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 4617029
+      },
+      {
+        "name": "clay_roof_tiles_02_diff_1k",
+        "mimeType": "image/jpeg",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 326614
+      },
+      {
+        "name": "clay_roof_tiles_02_rough.png",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 568237
+      },
+      {
+        "name": "japanese_stone_wall_nor_gl_8k.png",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 5718417
+      },
+      {
+        "name": "japanese_stone_wall_diff_1k000",
+        "mimeType": "image/jpeg",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 469474
+      },
+      {
+        "name": "japanese_stone_wall_rough_8k.png",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1012252
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "KHR_materials_ior",
+      "KHR_materials_specular",
+      "KHR_texture_transform"
+    ],
+    "compressionCandidate": true
+  },
+  {
+    "name": "templo.glb",
+    "active": true,
+    "bytes": 52210704,
+    "size": "49.79 MB",
+    "meshes": 1,
+    "primitives": 4,
+    "triangles": 519281,
+    "materials": 4,
+    "textures": [
+      {
+        "name": "tye_4_Normal",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 982975
+      },
+      {
+        "name": "tye_4_BaseColor",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 926518
+      },
+      {
+        "name": "tye_4_Roughness",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 4153570
+      },
+      {
+        "name": "tye_3_Normal",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 1643066
+      },
+      {
+        "name": "tye_3_BaseColor",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 785994
+      },
+      {
+        "name": "tye_3_Metallic-tye_3_Roughness",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 2481684
+      },
+      {
+        "name": "tye_2_Normal",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 398579
+      },
+      {
+        "name": "tye_2_BaseColor",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 1418999
+      },
+      {
+        "name": "tye_2_Roughness",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 4153996
+      },
+      {
+        "name": "tye_1_Normal",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 1676609
+      },
+      {
+        "name": "tye_1_BaseColor",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 1000377
+      },
+      {
+        "name": "tye_1_Roughness",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 4530775
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
+  },
+  {
+    "name": "casasite.glb",
+    "active": true,
+    "bytes": 52842672,
+    "size": "50.39 MB",
+    "meshes": 26,
+    "primitives": 69,
+    "triangles": 25958,
+    "materials": 10,
+    "textures": [
+      {
+        "name": "beams norms",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 354149
+      },
+      {
+        "name": "beams Color",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 787466
+      },
+      {
+        "name": "beams cav",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 2020122
+      },
+      {
+        "name": "antique-grate1-normal-ogl",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 602306
+      },
+      {
+        "name": "antique-grate1-albedo",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 306478
+      },
+      {
+        "name": "antique-grate1-metallic-antique-grate1-roughness",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 4359319
+      },
+      {
+        "name": "rock_08_diff_2k",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 1721513
+      },
+      {
+        "name": "rock_08_diff_2k",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 4912891
+      },
+      {
+        "name": "limestone3_Normal-ogl",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 1563008
+      },
+      {
+        "name": "limestone3_Base_Color",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 1414593
+      },
+      {
+        "name": "limestone3_Roughness",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 3915584
+      },
+      {
+        "name": "limestonemarked2-normal-ogl",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 1511659
+      },
+      {
+        "name": "limestonemarked2-albedo",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 1231769
+      },
+      {
+        "name": "limestonemarked2-rough",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 3966011
+      },
+      {
+        "name": "fiberous_plaster_Normal-ogl",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 1969398
+      },
+      {
+        "name": "fiberous_plaster_albedo",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 883433
+      },
+      {
+        "name": "fiberous_plaster_Roughness",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 4960272
+      },
+      {
+        "name": "window light",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 100622
+      },
+      {
+        "name": "Old_Window_-_Scortsite",
+        "mimeType": "image/jpeg",
+        "width": 3011,
+        "height": 2000,
+        "bytes": 2050418
+      },
+      {
+        "name": "Old_Window_-_Scortsite",
+        "mimeType": "image/png",
+        "width": 3011,
+        "height": 2000,
+        "bytes": 6496265
+      },
+      {
+        "name": "medieval_door_02",
+        "mimeType": "image/jpeg",
+        "width": 1920,
+        "height": 1080,
+        "bytes": 199574
+      },
+      {
+        "name": "medieval_door_02",
+        "mimeType": "image/png",
+        "width": 1920,
+        "height": 1080,
+        "bytes": 631142
+      },
+      {
+        "name": "old-clay-roof-tiles_normal_2k",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 380302
+      },
+      {
+        "name": "old-clay-roof-tiles_base_2k",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 1190645
+      },
+      {
+        "name": "old-clay-roof-tiles_rough_2k",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 4513334
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "KHR_materials_emissive_strength",
+      "KHR_texture_transform"
+    ],
+    "compressionCandidate": true
+  },
+  {
+    "name": "arvore.glb",
+    "active": true,
+    "bytes": 98807512,
+    "size": "94.23 MB",
+    "meshes": 3,
+    "primitives": 5,
+    "triangles": 1421559,
+    "materials": 5,
+    "textures": [
+      {
+        "name": "island_tree_02_branches_nor_gl_1k",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 5400459
+      },
+      {
+        "name": "island_tree_02_branches_diff_1k",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 5300342
+      },
+      {
+        "name": "Image",
+        "mimeType": "image/png",
+        "width": 1,
+        "height": 1,
+        "bytes": 250
+      },
+      {
+        "name": "plant-8_normal",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 632078
+      },
+      {
+        "name": "plant-8",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 1203169
+      },
+      {
+        "name": "plant-8",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 4198453
+      },
+      {
+        "name": "leaves-2_normal",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 524309
+      },
+      {
+        "name": "leaves-2_diffuse",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 941165
+      },
+      {
+        "name": "leaves-2_roughness",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 4158881
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "KHR_materials_specular"
+    ],
+    "compressionCandidate": true
+  },
+  {
+    "name": "bode_rigged.glb",
+    "active": true,
+    "bytes": 2269172,
+    "size": "2.16 MB",
+    "meshes": 3,
+    "primitives": 5,
+    "triangles": 17074,
+    "materials": 3,
+    "textures": [
+      {
+        "name": "Bighorn_normalmap",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 283461
+      },
+      {
+        "name": "Boghorn_texture",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 293149
+      },
+      {
+        "name": "Bighorn_roughness",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 602037
+      },
+      {
+        "name": "Eyes_specular",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 49617
+      },
+      {
+        "name": "Eyes_texture",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 121657
+      },
+      {
+        "name": "Eyes_roughness",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 59578
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 1,
+    "skins": 1,
+    "bones": 275,
+    "extensions": [
+      "KHR_materials_specular"
+    ],
+    "compressionCandidate": true
+  },
+  {
+    "name": "architecture_landmark.glb",
+    "active": false,
+    "bytes": 34352124,
+    "size": "32.76 MB",
+    "meshes": 6,
+    "primitives": 6,
+    "triangles": 498604,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1740385
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1200986
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 938765
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "KHR_materials_specular"
+    ],
+    "compressionCandidate": true
+  },
+  {
+    "name": "bagan_temple_aerial_scan.glb",
+    "active": false,
+    "bytes": 29715524,
+    "size": "28.34 MB",
+    "meshes": 2,
+    "primitives": 2,
+    "triangles": 73324,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/jpeg",
+        "width": 8192,
+        "height": 8192,
+        "bytes": 25842956
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "KHR_materials_unlit"
+    ],
+    "compressionCandidate": true
+  },
+  {
+    "name": "casatecnomago-v2.glb",
+    "active": false,
+    "bytes": 15719840,
+    "size": "14.99 MB",
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 566366,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 512,
+        "bytes": 538371
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 512,
+        "bytes": 284135
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
+  },
+  {
+    "name": "casatecnomago.glb",
+    "active": false,
+    "bytes": 15390212,
+    "size": "14.68 MB",
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 566366,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 512,
+        "bytes": 405071
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 512,
+        "bytes": 255375
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
+  },
+  {
+    "name": "fantastic_castle.glb",
+    "active": false,
+    "bytes": 22214628,
+    "size": "21.19 MB",
+    "meshes": 5,
+    "primitives": 5,
+    "triangles": 53629,
+    "materials": 5,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1784100
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 932705
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1579014
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1771387
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 964559
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1617318
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1642610
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 929489
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1483086
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1391539
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 706041
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1246744
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1367147
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 167615
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 3497
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 1,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
+  },
+  {
+    "name": "fortaleza.glb",
+    "active": false,
+    "bytes": 15393280,
+    "size": "14.68 MB",
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 551958,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 512,
+        "bytes": 483312
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 512,
+        "bytes": 222584
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
+  },
+  {
+    "name": "free_battlemage_wizard.glb",
+    "active": false,
+    "bytes": 2632828,
+    "size": "2.51 MB",
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 29999,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/jpeg",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 1545895
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
+  },
+  {
+    "name": "montanhadireita.glb",
+    "active": false,
+    "bytes": 51365344,
+    "size": "48.99 MB",
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 311200,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "Normal Map",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 22605559
+      },
+      {
+        "name": "Combine",
+        "mimeType": "image/png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 20043506
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "KHR_materials_ior",
+      "KHR_materials_specular"
+    ],
+    "compressionCandidate": true
+  },
+  {
+    "name": "observatorioTec_mesh_00001_.glb",
+    "active": false,
+    "bytes": 11127568,
+    "size": "10.61 MB",
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 639968,
+    "materials": 1,
+    "textures": [],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
+  },
+  {
+    "name": "observatorioTec_Texturizado.glb",
+    "active": false,
+    "bytes": 19284796,
+    "size": "18.39 MB",
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 639968,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 512,
+        "bytes": 483072
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 512,
+        "bytes": 212191
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
+  },
+  {
+    "name": "tecnomago.before-textured.glb",
+    "active": false,
+    "bytes": 13773208,
+    "size": "13.14 MB",
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 773700,
+    "materials": 1,
+    "textures": [],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
+  },
+  {
+    "name": "tecnomago.glb",
+    "active": false,
+    "bytes": 5281996,
+    "size": "5.04 MB",
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 149999,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 512,
+        "bytes": 406114
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 512,
+        "bytes": 171581
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
+  },
+  {
+    "name": "URSO_texturizado.glb",
+    "active": false,
+    "bytes": 6063416,
+    "size": "5.78 MB",
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 150000,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 512,
+        "bytes": 421268
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 512,
+        "bytes": 165100
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
+  }
+]

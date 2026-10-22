@@ -5,12 +5,46 @@ import { createRenderer } from './scene/createRenderer.js';
 import { createWorld3d } from './scene3d/createWorld3d.js';
 import { updateBearProcedural } from './scene3d/createBearCharacter3d.js';
 
+console.time('[Tamarind] tempo até first render');
+console.time('[Tamarind] tempo até mundo completo');
+const tamarindMetrics = {
+  startedAt: 0,
+  scriptStartedMs: performance.now(),
+  assets: [],
+  longTasks: [],
+};
+window.__tamarindMetrics = tamarindMetrics;
+
+const navigationEntry = performance.getEntriesByType('navigation')[0];
+if (navigationEntry?.domContentLoadedEventEnd) {
+  tamarindMetrics.domContentLoadedMs = navigationEntry.domContentLoadedEventEnd;
+} else {
+  window.addEventListener('DOMContentLoaded', () => {
+    tamarindMetrics.domContentLoadedMs = performance.now();
+  }, { once: true });
+}
+if ('PerformanceObserver' in window) {
+  try {
+    const longTaskObserver = new PerformanceObserver((list) => {
+      list.getEntries().forEach((entry) => {
+        tamarindMetrics.longTasks.push({ startMs: entry.startTime, durationMs: entry.duration });
+      });
+    });
+    longTaskObserver.observe({ type: 'longtask', buffered: true });
+  } catch {
+    // Long Task API is optional; asset timings remain available everywhere.
+  }
+}
+
 const container = document.querySelector('#scene');
 const status = document.querySelector('#scene-status');
 const navigationHint = document.querySelector('.navigation-hint');
 const topNavigation = document.querySelector('.top-navigation');
 const dayNightToggle = document.querySelector('#day-night-toggle');
+const rendererStartedAt = performance.now();
 const renderer = createRenderer(container);
+tamarindMetrics.rendererCreatedMs = performance.now();
+tamarindMetrics.rendererCreationMs = performance.now() - rendererStartedAt;
 const camera = createCamera3d(container.clientWidth / container.clientHeight);
 const pointer = new THREE.Vector2();
 const easedPointer = new THREE.Vector2();
@@ -25,6 +59,7 @@ let bear = null;
 let activeScene = null;
 let water = null;
 let coast = null;
+let millPond = null;
 let landmarkTargets = null;
 let dayNightController = null;
 let nightTarget = 0;
@@ -82,48 +117,77 @@ function createDayNightController(scene, activeRenderer, landmarks, activeWater)
 
   const emissiveMaterials = [];
   const seenMaterials = new Set();
+  const seenLightTargets = new Set();
+  const localLights = [];
   const luminousName = /window|glass|lamp|light|emissive|lantern/i;
-  scene.traverse((object) => {
-    if (!object.isMesh) return;
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
-    for (const material of materials) {
-      if (!material?.emissive || seenMaterials.has(material)) continue;
-      const label = `${material.name || ''} ${object.name || ''}`;
-      const emissiveEnergy = Math.max(material.emissive.r, material.emissive.g, material.emissive.b)
-        * material.emissiveIntensity;
-      if (emissiveEnergy <= 0.01 && !luminousName.test(label)) continue;
-      seenMaterials.add(material);
-      emissiveMaterials.push({
-        material,
-        dayColor: material.emissive.clone(),
-        dayIntensity: material.emissiveIntensity,
-        nightColor: new THREE.Color('#ff9a45'),
-        nightIntensity: Math.max(1.85, material.emissiveIntensity * 2.4),
-      });
+  const belongsTo = (object, root) => {
+    let current = object;
+    while (current) {
+      if (current === root) return true;
+      current = current.parent;
     }
-  });
+    return false;
+  };
+  const refresh = () => {
+    scene.traverse((object) => {
+      if (!object.isMesh) return;
+      const isArchitectureMesh = belongsTo(object, landmarks.architecture);
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of materials) {
+        if (!material?.emissive || seenMaterials.has(material)) continue;
+        const label = `${material.name || ''} ${object.name || ''}`;
+        const emissiveEnergy = Math.max(material.emissive.r, material.emissive.g, material.emissive.b)
+          * material.emissiveIntensity;
+        if (emissiveEnergy <= 0.01 && !luminousName.test(label)) continue;
+        seenMaterials.add(material);
+        emissiveMaterials.push({
+          material,
+          dayColor: material.emissive.clone(),
+          dayIntensity: material.emissiveIntensity,
+          nightColor: new THREE.Color(isArchitectureMesh ? '#8b5438' : '#ff9a45'),
+          nightIntensity: isArchitectureMesh
+            ? Math.min(0.12, material.emissiveIntensity * 0.12)
+            : Math.max(1.85, material.emissiveIntensity * 2.4),
+        });
+      }
+    });
 
-  const localLightTargets = [
-    ...Object.values(landmarks),
-    scene.getObjectByName('OrientalPagoda'),
-    scene.getObjectByName('DistantHillCastleGLB'),
-  ].filter(Boolean);
-  const localLights = localLightTargets.map((landmark, index) => {
-    const bounds = new THREE.Box3().setFromObject(landmark);
-    const size = bounds.getSize(new THREE.Vector3());
-    const position = bounds.getCenter(new THREE.Vector3());
-    position.y = THREE.MathUtils.lerp(bounds.min.y, bounds.max.y, 0.52);
-    position.z = bounds.max.z + THREE.MathUtils.clamp(size.z * 0.04, 0.4, 1);
-    const light = new THREE.PointLight(index === 0 ? '#ff9a55' : '#ffb35c', 0, 18, 2);
-    light.name = `NightLandmarkFill_${index}`;
-    light.position.copy(position);
-    light.castShadow = false;
-    scene.add(light);
-    return light;
-  });
+    const localLightTargets = [
+      ['tecnomago', landmarks.tecnomago],
+      ['apps', landmarks.apps],
+      ['architecture', landmarks.architecture],
+      ['pagoda', scene.getObjectByName('OrientalPagoda')],
+      ['castle', scene.getObjectByName('DistantHillCastleGLB')],
+    ].filter(([, object]) => Boolean(object));
+    for (const [key, landmark] of localLightTargets) {
+      if (seenLightTargets.has(landmark)) continue;
+      seenLightTargets.add(landmark);
+      const bounds = new THREE.Box3().setFromObject(landmark);
+      const size = bounds.getSize(new THREE.Vector3());
+      const position = bounds.getCenter(new THREE.Vector3());
+      const isArchitecture = key === 'architecture';
+      position.y = THREE.MathUtils.lerp(bounds.min.y, bounds.max.y, isArchitecture ? 0.34 : 0.52);
+      position.z = bounds.max.z + THREE.MathUtils.clamp(size.z * 0.04, 0.4, 1);
+      const index = localLights.length;
+      const light = new THREE.PointLight(
+        isArchitecture ? '#ffd0a3' : index === 0 ? '#ff9a55' : '#ffb35c',
+        0,
+        isArchitecture ? 9 : 18,
+        isArchitecture ? 2.25 : 2,
+      );
+      light.name = `NightLandmarkFill_${index}`;
+      light.position.copy(position);
+      light.castShadow = false;
+      light.userData.nightIntensity = isArchitecture ? 9 : index < 3 ? 56 : 27;
+      scene.add(light);
+      localLights.push(light);
+    }
+  };
+  refresh();
 
   const colorScratch = new THREE.Color();
   return {
+    refresh,
     update(value) {
       scene.background.copy(colorScratch.copy(day.background).lerp(night.background, value));
       scene.fog.color.copy(colorScratch.copy(day.fogColor).lerp(night.fogColor, value));
@@ -154,8 +218,8 @@ function createDayNightController(scene, activeRenderer, landmarks, activeWater)
         entry.material.emissive.copy(colorScratch.copy(entry.dayColor).lerp(entry.nightColor, value));
         entry.material.emissiveIntensity = THREE.MathUtils.lerp(entry.dayIntensity, entry.nightIntensity, value);
       }
-      localLights.forEach((light, index) => {
-        light.intensity = THREE.MathUtils.lerp(0, index < 3 ? 56 : 27, value);
+      localLights.forEach((light) => {
+        light.intensity = THREE.MathUtils.lerp(0, light.userData.nightIntensity, value);
       });
     },
   };
@@ -265,7 +329,7 @@ async function initializeScene() {
       water: loadedWater,
       coast: loadedCoast,
       landmarks,
-      updateGoatWalk,
+      startSecondaryLoad,
       cameraTarget,
       cameraPosition,
     } = await createWorld3d();
@@ -275,19 +339,29 @@ async function initializeScene() {
     coast = loadedCoast;
     dayNightController = createDayNightController(scene, renderer, landmarks, loadedWater);
     dayNightController.update(nightMix);
-    landmarkTargets = Object.fromEntries(
-      Object.entries(landmarks).map(([key, object]) => {
-        const objectBounds = new THREE.Box3().setFromObject(object);
-        const objectSize = objectBounds.getSize(new THREE.Vector3());
-        objectBounds.getCenter(landmarkWorldPosition);
-        const anchorGap = THREE.MathUtils.clamp(objectSize.y * 0.08, 1.4, 2.8);
-        landmarkWorldPosition.y = objectBounds.max.y + anchorGap;
-        return [key, landmarkWorldPosition.clone()];
-      }),
-    );
+    const refreshLandmarkAnchors = () => {
+      landmarkTargets = Object.fromEntries(
+        Object.entries(landmarks).map(([key, object]) => {
+          const objectBounds = new THREE.Box3().setFromObject(object);
+          const objectSize = objectBounds.getSize(new THREE.Vector3());
+          objectBounds.getCenter(landmarkWorldPosition);
+          const anchorGap = key === 'tecnomago'
+            ? THREE.MathUtils.clamp(objectSize.y * 0.11, 2.8, 4.2)
+            : key === 'architecture'
+              ? THREE.MathUtils.clamp(objectSize.y * 0.14, 2.2, 3.4)
+              : THREE.MathUtils.clamp(objectSize.y * 0.09, 1.8, 3.2);
+          landmarkWorldPosition.y = objectBounds.max.y + anchorGap;
+          return [key, landmarkWorldPosition.clone()];
+        }),
+      );
+    };
+    refreshLandmarkAnchors();
     camera.userData.baseTarget.set(...cameraTarget);
     if (cameraPosition) camera.position.set(...cameraPosition);
     camera.lookAt(camera.userData.baseTarget);
+    renderer.render(scene, camera);
+    tamarindMetrics.firstRenderMs = performance.now();
+    console.timeEnd('[Tamarind] tempo até first render');
     status.remove();
     const clock = new THREE.Clock();
     const basePosition = camera.position.clone();
@@ -299,6 +373,8 @@ async function initializeScene() {
     let performanceFrames = 0;
     let performanceSampleStart = performance.now();
     let performanceReported = false;
+    let updateGoatWalk = null;
+    let updateWizardNpc = null;
     renderer.setAnimationLoop(() => {
       const delta = Math.min(clock.getDelta(), 0.05);
       const elapsed = clock.elapsedTime;
@@ -308,6 +384,7 @@ async function initializeScene() {
       easedPointer.lerp(pointer, smooth);
       updateBearProcedural(bear, easedPointer, elapsed, delta);
       updateGoatWalk?.(elapsed, delta);
+      updateWizardNpc?.(elapsed, delta);
       orbitOffset.copy(baseOffset).applyAxisAngle(THREE.Object3D.DEFAULT_UP, orbitYaw);
       targetPosition.copy(baseTarget).add(orbitOffset);
       targetPosition.y -= easedPointer.y * 1.2;
@@ -317,6 +394,7 @@ async function initializeScene() {
       const waterShader = water?.material?.userData?.shader;
       if (waterShader?.uniforms?.uWaterTime) waterShader.uniforms.uWaterTime.value = elapsed;
       coast?.userData?.update?.(elapsed);
+      millPond?.userData?.update?.(elapsed);
       renderer.render(scene, camera);
       updateLandmarkNavigation();
 
@@ -333,6 +411,86 @@ async function initializeScene() {
       }
     });
     initialized = true;
+
+    startSecondaryLoad({
+      onAssetLoaded: ({ key, object }) => {
+        if (key === 'coast') coast = object;
+        if (key === 'millPond') millPond = object;
+        dayNightController.refresh();
+        dayNightController.update(nightMix);
+        refreshLandmarkAnchors();
+        console.info(`[Tamarind] Asset secundário integrado: ${key}.`);
+      },
+      onPhaseComplete: (phase, elapsedMs) => {
+        console.info(`[Tamarind] Fase ${phase} pronta em ${Math.round(elapsedMs)} ms.`);
+      },
+    }).then((secondary) => {
+      updateGoatWalk = secondary.updateGoatWalk;
+      updateWizardNpc = secondary.updateWizardNpc;
+      dayNightController.refresh();
+      dayNightController.update(nightMix);
+      refreshLandmarkAnchors();
+      const resources = performance.getEntriesByType('resource');
+      const glbResources = resources.filter((entry) => entry.name.includes('.glb'));
+      tamarindMetrics.worldCompleteMs = performance.now();
+      tamarindMetrics.requestCount = resources.length;
+      tamarindMetrics.glbRequestCount = glbResources.length;
+      tamarindMetrics.totalTransferBytes = resources.reduce(
+        (total, entry) => total + (entry.transferSize || entry.encodedBodySize || 0),
+        0,
+      );
+      const resourceCounts = resources.reduce((counts, entry) => {
+        const url = entry.name.split('?')[0];
+        counts[url] = (counts[url] ?? 0) + 1;
+        return counts;
+      }, {});
+      tamarindMetrics.duplicateRequests = Object.entries(resourceCounts)
+        .filter(([, count]) => count > 1)
+        .map(([url, count]) => ({ url, count }));
+      console.table(tamarindMetrics.assets.map((asset) => ({
+        asset: asset.asset,
+        phase: asset.phase,
+        sizeMB: (asset.bytes / 1024 / 1024).toFixed(2),
+        downloadMs: Math.round(asset.downloadMs),
+        parseMs: Math.round(asset.parseMs),
+        totalMs: Math.round(asset.totalMs),
+      })));
+      console.info('[Tamarind] Métricas de carregamento.', JSON.stringify(tamarindMetrics));
+      if (new URLSearchParams(window.location.search).has('perf')) {
+        const diagnostic = {
+          firstRenderMs: Math.round(tamarindMetrics.firstRenderMs),
+          landmarksReadyMs: Math.round(tamarindMetrics.landmarksReadyMs),
+          inhabitedReadyMs: Math.round(tamarindMetrics.inhabitedReadyMs),
+          worldCompleteMs: Math.round(tamarindMetrics.worldCompleteMs),
+          glbRequestCount: tamarindMetrics.glbRequestCount,
+          duplicateRequests: tamarindMetrics.duplicateRequests,
+          surfaceSampler: tamarindMetrics.surfaceSampler,
+          assets: tamarindMetrics.assets.map((asset) => ({
+            asset: asset.asset,
+            bytes: asset.bytes,
+            downloadMs: Math.round(asset.downloadMs),
+            parseMs: Math.round(asset.parseMs),
+            totalMs: Math.round(asset.totalMs),
+          })),
+        };
+        document.title = [
+          'Tamarind Perf',
+          `first=${Math.round(tamarindMetrics.firstRenderMs)}ms`,
+          `landmarks=${Math.round(tamarindMetrics.landmarksReadyMs)}ms`,
+          `world=${Math.round(tamarindMetrics.worldCompleteMs)}ms`,
+          `glb=${tamarindMetrics.glbRequestCount}`,
+        ].join(' | ');
+        window.history.replaceState(
+          null,
+          '',
+          `${window.location.pathname}${window.location.search}#metrics=${encodeURIComponent(JSON.stringify(diagnostic))}`,
+        );
+      }
+      console.timeEnd('[Tamarind] tempo até mundo completo');
+    }).catch((error) => {
+      console.error('Falha ao carregar assets secundários do mundo Tamarind.', error);
+      console.timeEnd('[Tamarind] tempo até mundo completo');
+    });
   } catch (error) {
     console.error('Falha ao carregar o mundo 3D Tamarind.', error);
     status.textContent = 'Não foi possível carregar o mundo 3D.';

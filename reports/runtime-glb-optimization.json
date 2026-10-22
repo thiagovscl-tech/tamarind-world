@@ -1,0 +1,41 @@
+[
+  {
+    "input": "architecture_landmark.glb",
+    "output": "architecture_landmark.web.glb",
+    "textureSize": 1024,
+    "before": 34352124,
+    "after": 4453752,
+    "reduction": 29898372,
+    "reductionPercent": 87.03500255180727
+  },
+  {
+    "input": "fantastic_castle.glb",
+    "output": "fantastic_castle.web.glb",
+    "textureSize": 512,
+    "before": 22214628,
+    "after": 1461288,
+    "reduction": 20753340,
+    "reductionPercent": 93.42195601925002
+  },
+  {
+    "input": "free_battlemage_wizard.glb",
+    "output": "free_battlemage_wizard.web.glb",
+    "textureSize": 512,
+    "before": 2632828,
+    "after": 282972,
+    "reduction": 2349856,
+    "reductionPercent": 89.25216535223721
+  },
+  {
+    "input": "arvore.glb",
+    "output": "arvore.runtime.web.glb",
+    "textureSize": 512,
+    "simplifyRatio": 0.22,
+    "simplifyError": 0.002,
+    "keepTreeLod0Only": true,
+    "before": 98807512,
+    "after": 7996472,
+    "reduction": 90811040,
+    "reductionPercent": 91.90702018688619
+  }
+]
