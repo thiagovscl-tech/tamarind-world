@@ -667,19 +667,23 @@ body.is-night-mode { background: #081526; }
 
 #scene-status[data-error='true'] { color: #ffb7a7; }
 
-@media (max-width: 768px) {
+@media (max-width: 768px),
+  (max-width: 950px) and (max-height: 500px),
+  (hover: none) and (pointer: coarse) {
   html,
-  body,
-  #scene {
+  body {
     width: 100%;
     height: 100%;
-    min-height: 100dvh;
     overflow: hidden;
   }
 
   #scene {
     position: fixed;
-    inset: 0;
+    inset: 0 auto auto 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
     transform: none;
   }
 
@@ -860,7 +864,7 @@ body.is-night-mode { background: #081526; }
   .project-panel__description { margin: 14px 0; }
 }
 
-@media (max-width: 768px) and (orientation: landscape) and (max-height: 500px) {
+@media (orientation: landscape) and (max-height: 500px) and (max-width: 950px) {
   .navigation-hint { display: none; }
   .logo-tamarind { width: 104px; }
   .project-panel {

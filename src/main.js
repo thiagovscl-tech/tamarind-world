@@ -66,12 +66,54 @@ let landmarkTargets = null;
 let dayNightController = null;
 let nightTarget = 0;
 let nightMix = 0;
-const mobileViewport = window.matchMedia('(max-width: 768px)');
-const compactMobileViewport = window.matchMedia('(max-width: 480px)');
+const MOBILE_VIEWPORT_QUERY = [
+  '(max-width: 768px)',
+  '(max-width: 950px) and (max-height: 500px)',
+  '(hover: none) and (pointer: coarse)',
+].join(', ');
+const mobileViewport = window.matchMedia(MOBILE_VIEWPORT_QUERY);
+const mobileAuditEnabled = new URLSearchParams(window.location.search).has('mobileAudit');
 const activePointers = new Map();
 let pinchDistance = 0;
 let mobileZoom = 1;
 let updateResponsiveCamera = null;
+
+function reportMobileAudit(reason) {
+  if (!mobileAuditEnabled) return;
+  const drawingBuffer = renderer.getDrawingBufferSize(new THREE.Vector2());
+  const gl = renderer.getContext();
+  const debugRendererInfo = gl.getExtension('WEBGL_debug_renderer_info');
+  console.info('[Tamarind][Mobile Audit]', {
+    reason,
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+    visualViewport: window.visualViewport
+      ? `${Math.round(window.visualViewport.width)}x${Math.round(window.visualViewport.height)}`
+      : 'indisponível',
+    devicePixelRatio: window.devicePixelRatio || 1,
+    mobileLayout: mobileViewport.matches,
+    cameraFov: Number(camera.fov.toFixed(2)),
+    cameraPosition: camera.position.toArray().map((value) => Number(value.toFixed(2))),
+    cameraAspect: Number(camera.aspect.toFixed(4)),
+    rendererCssSize: `${container.clientWidth}x${container.clientHeight}`,
+    drawingBuffer: `${drawingBuffer.x}x${drawingBuffer.y}`,
+    webglVersion: gl.getParameter(gl.VERSION),
+    webglRenderer: debugRendererInfo
+      ? gl.getParameter(debugRendererInfo.UNMASKED_RENDERER_WEBGL)
+      : gl.getParameter(gl.RENDERER),
+    maxTextureSize: gl.getParameter(gl.MAX_TEXTURE_SIZE),
+  });
+}
+
+renderer.domElement.addEventListener('webglcontextlost', (event) => {
+  event.preventDefault();
+  console.error('[Tamarind] Contexto WebGL perdido no dispositivo.', {
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+    devicePixelRatio: window.devicePixelRatio || 1,
+  });
+});
+renderer.domElement.addEventListener('webglcontextrestored', () => {
+  console.info('[Tamarind] Contexto WebGL restaurado.');
+});
 
 function getResponsiveCameraSpec(aspect, desktopFov = 44) {
   if (!mobileViewport.matches) return { fov: desktopFov, distanceScale: 1 };
@@ -514,6 +556,7 @@ async function initializeScene() {
     }
     camera.lookAt(camera.userData.baseTarget);
     renderer.render(scene, camera);
+    reportMobileAudit('first-render');
     tamarindMetrics.firstRenderMs = performance.now();
     console.timeEnd('[Tamarind] tempo até first render');
     status.remove();
@@ -832,11 +875,12 @@ async function initializeScene() {
 
 initializeScene();
 
-const resizeObserver = new ResizeObserver(() => {
+let viewportSyncFrame = 0;
+const syncViewport = () => {
   const width = container.clientWidth;
   const height = container.clientHeight;
   if (!width || !height) return;
-  const pixelRatioCap = compactMobileViewport.matches ? 1.25 : 1.5;
+  const pixelRatioCap = mobileViewport.matches ? 1.25 : 1.5;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, pixelRatioCap));
   renderer.setSize(width, height);
   resizeCamera3d(camera, width / height);
@@ -850,5 +894,18 @@ const resizeObserver = new ResizeObserver(() => {
     updateLandmarkNavigation();
     renderer.render(activeScene, camera);
   }
-});
+  reportMobileAudit('viewport-sync');
+};
+
+const scheduleViewportSync = () => {
+  window.cancelAnimationFrame(viewportSyncFrame);
+  viewportSyncFrame = window.requestAnimationFrame(() => {
+    viewportSyncFrame = window.requestAnimationFrame(syncViewport);
+  });
+};
+
+const resizeObserver = new ResizeObserver(scheduleViewportSync);
 resizeObserver.observe(container);
+window.addEventListener('resize', scheduleViewportSync, { passive: true });
+window.addEventListener('orientationchange', scheduleViewportSync, { passive: true });
+window.visualViewport?.addEventListener('resize', scheduleViewportSync, { passive: true });

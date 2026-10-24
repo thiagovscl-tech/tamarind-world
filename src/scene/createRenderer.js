@@ -7,7 +7,12 @@ export function createRenderer(container) {
     powerPreference: 'high-performance',
   });
 
-  const pixelRatioCap = window.matchMedia('(max-width: 480px)').matches ? 1.25 : 1.5;
+  const mobileViewport = window.matchMedia([
+    '(max-width: 768px)',
+    '(max-width: 950px) and (max-height: 500px)',
+    '(hover: none) and (pointer: coarse)',
+  ].join(', '));
+  const pixelRatioCap = mobileViewport.matches ? 1.25 : 1.5;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, pixelRatioCap));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;

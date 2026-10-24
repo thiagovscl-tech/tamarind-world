@@ -91,6 +91,7 @@ function loadGlbOnce(url, label, phase = 'secondary') {
       .finally(() => console.timeEnd(timerLabel))
       .catch((error) => {
         gltfRequests.delete(url);
+        console.error('[Tamarind] Falha ao carregar GLB.', { asset: label, url, phase, error });
         throw error;
       });
     gltfRequests.set(url, request);
