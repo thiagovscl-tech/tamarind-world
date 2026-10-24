@@ -11,6 +11,7 @@ body,
 
 body {
   background: #194c98;
+  overscroll-behavior: none;
   transition: background-color 1.8s ease;
 }
 
@@ -30,6 +31,7 @@ body.is-night-mode { background: #081526; }
   display: block;
   width: 100%;
   height: 100%;
+  touch-action: none;
 }
 
 .logo-tamarind {
@@ -100,6 +102,8 @@ body.is-night-mode { background: #081526; }
   opacity: 0.92;
   transform: scaleX(1);
 }
+
+.mobile-menu-toggle { display: none; }
 
 .day-night-toggle {
   position: absolute;
@@ -396,6 +400,231 @@ body.is-night-mode { background: #081526; }
   --expanded-width: 176px;
 }
 
+.landmark-focus-shade {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: linear-gradient(90deg, rgb(4 9 17 / 4%) 30%, rgb(4 9 17 / 19%) 100%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 260ms ease;
+}
+
+#scene.is-landmark-focused .landmark-focus-shade { opacity: 1; }
+
+#scene.is-landmark-focused .landmark-navigation {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+.project-panel {
+  position: absolute;
+  top: clamp(92px, 12vh, 126px);
+  right: clamp(22px, 3vw, 46px);
+  bottom: clamp(28px, 5vh, 54px);
+  z-index: 25;
+  display: flex;
+  width: min(330px, 29vw);
+  min-width: 286px;
+  max-height: 520px;
+  flex-direction: column;
+  padding: 22px;
+  overflow: auto;
+  border: 1px solid rgb(231 196 139 / 18%);
+  border-radius: 18px;
+  background: rgb(9 12 17 / 92%);
+  box-shadow: 0 20px 50px rgb(2 6 13 / 32%), inset 0 1px rgb(255 255 255 / 5%);
+  color: #f8f4ed;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(20px);
+  transition: opacity 240ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1), visibility 260ms ease;
+}
+
+.project-panel.is-open {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+.project-panel__close {
+  position: absolute;
+  top: 13px;
+  right: 14px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgb(255 255 255 / 72%);
+  font: 300 23px/1 Inter, sans-serif;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.project-panel__close:hover,
+.project-panel__close:focus-visible {
+  background: rgb(255 255 255 / 8%);
+  color: #fff;
+  outline: none;
+}
+
+.project-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding-right: 28px;
+}
+
+.project-panel__icon {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgb(173 78 255 / 18%);
+}
+
+.project-panel h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 620;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+
+.project-panel__header p {
+  margin: 5px 0 0;
+  color: rgb(255 255 255 / 52%);
+  font-size: 10px;
+  font-weight: 520;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.project-panel__description {
+  margin: 19px 0 17px;
+  color: rgb(255 255 255 / 68%);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.project-panel__projects {
+  display: grid;
+  gap: 8px;
+}
+
+.project-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 11px;
+  align-items: center;
+  min-height: 54px;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 170ms ease, background 170ms ease, transform 170ms ease;
+}
+
+.project-card:hover,
+.project-card:focus-visible {
+  border-color: rgb(232 187 113 / 18%);
+  background: rgb(255 255 255 / 5%);
+  outline: none;
+  transform: translateX(2px);
+}
+
+.project-card__thumbnail {
+  width: 70px;
+  height: 44px;
+  border-radius: 7px;
+  background-color: #18203a;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 8%);
+}
+
+.project-card__thumbnail--worlds {
+  background: radial-gradient(circle at 70% 30%, #c9785b 0 8%, transparent 9%), linear-gradient(145deg, #152a3d 8%, #46536d 48%, #a4644e 49%, #252338 100%);
+}
+
+.project-card__thumbnail--memory {
+  background: radial-gradient(ellipse at 50% 70%, #cf9d61 0 12%, transparent 13%), linear-gradient(135deg, #6b365d, #252446 48%, #111d31);
+}
+
+.project-card__thumbnail--oracle {
+  background: radial-gradient(circle at 48% 52%, #bca6ff 0 7%, #554593 8% 21%, transparent 22%), linear-gradient(150deg, #0c2440, #1c4a65 52%, #171629);
+}
+
+.project-card__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.project-card__copy strong {
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 570;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-card__copy small {
+  padding-right: 58px;
+  color: rgb(255 255 255 / 45%);
+  font-size: 9px;
+}
+
+.project-card__cta {
+  position: absolute;
+  right: 8px;
+  bottom: 9px;
+  color: rgb(240 191 112 / 68%);
+  font-size: 8px;
+  font-weight: 560;
+  white-space: nowrap;
+}
+
+.project-panel[data-section='apps'] .project-panel__icon {
+  box-shadow: 0 0 12px rgb(69 170 255 / 18%);
+}
+
+.project-panel[data-section='architecture'] .project-panel__icon {
+  box-shadow: 0 0 12px rgb(239 181 75 / 18%);
+}
+
+.project-panel__explore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 38px;
+  margin-top: 17px;
+  border-radius: 999px;
+  background: #f6f3ed;
+  color: #111317;
+  font-size: 11px;
+  font-weight: 650;
+  text-decoration: none;
+  transition: background 170ms ease, transform 170ms ease;
+}
+
+.project-panel__explore:hover,
+.project-panel__explore:focus-visible {
+  background: #fff;
+  outline: none;
+  transform: translateY(-1px);
+}
+
 .scene-controls {
   position: absolute;
   right: 16px;
@@ -438,54 +667,209 @@ body.is-night-mode { background: #081526; }
 
 #scene-status[data-error='true'] { color: #ffb7a7; }
 
-@media (max-width: 520px) {
-  .logo-tamarind {
-    top: 14px;
-    left: 16px;
-    width: clamp(112px, 34vw, 145px);
+@media (max-width: 768px) {
+  html,
+  body,
+  #scene {
+    width: 100%;
+    height: 100%;
+    min-height: 100dvh;
+    overflow: hidden;
   }
 
-  .navigation-hint {
-    top: 98px;
-    gap: 3px;
+  #scene {
+    position: fixed;
+    inset: 0;
+    transform: none;
   }
+
+  .logo-tamarind {
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    left: calc(env(safe-area-inset-left, 0px) + 14px);
+    width: clamp(104px, 28vw, 136px);
+  }
+
+  .mobile-menu-toggle {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 13px);
+    left: 50%;
+    z-index: 24;
+    display: grid;
+    width: 38px;
+    height: 34px;
+    padding: 8px 9px;
+    place-content: center;
+    gap: 4px;
+    border: 1px solid rgb(255 255 255 / 24%);
+    border-radius: 999px;
+    background: rgb(9 14 22 / 66%);
+    box-shadow: 0 5px 14px rgb(3 8 18 / 18%);
+    transform: translateX(-50%);
+    backdrop-filter: blur(8px);
+  }
+
+  .mobile-menu-toggle span {
+    display: block;
+    width: 16px;
+    height: 1px;
+    background: rgb(255 253 248 / 86%);
+    transition: transform 180ms ease, opacity 180ms ease;
+  }
+
+  .mobile-menu-toggle[aria-expanded='true'] span:nth-child(1) { transform: translateY(5px) rotate(45deg); }
+  .mobile-menu-toggle[aria-expanded='true'] span:nth-child(2) { opacity: 0; }
+  .mobile-menu-toggle[aria-expanded='true'] span:nth-child(3) { transform: translateY(-5px) rotate(-45deg); }
 
   .top-navigation {
-    top: 58px;
-    width: calc(100% - 28px);
-    gap: clamp(14px, 5vw, 24px);
+    top: calc(env(safe-area-inset-top, 0px) + 56px);
+    width: 174px;
+    padding: 10px;
+    flex-direction: column;
+    gap: 2px;
+    border: 1px solid rgb(231 196 139 / 18%);
+    border-radius: 15px;
+    background: rgb(9 12 17 / 91%);
+    box-shadow: 0 15px 34px rgb(2 6 13 / 28%);
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -8px);
+    backdrop-filter: blur(12px) saturate(110%);
+    transition: opacity 180ms ease, transform 200ms ease, visibility 200ms ease;
+  }
+
+  .top-navigation.is-open {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, 0);
   }
 
   .top-navigation__link {
-    padding-bottom: 8px;
-    font-size: 11px;
-    letter-spacing: 0;
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 9px;
+    font-size: 12px;
+    letter-spacing: 0.01em;
+    text-align: center;
   }
 
+  .top-navigation__link::after { display: none; }
+  .top-navigation__link[aria-current='page'] { background: rgb(255 255 255 / 7%); }
+
   .day-night-toggle {
-    top: 14px;
-    right: 12px;
+    top: calc(env(safe-area-inset-top, 0px) + 13px);
+    right: calc(env(safe-area-inset-right, 0px) + 12px);
     gap: 5px;
-    min-height: 32px;
+    min-height: 34px;
     padding: 4px 8px;
     font-size: 9px;
   }
 
-  .navigation-hint__instruction { letter-spacing: 0.12em; }
+  .navigation-hint {
+    top: calc(env(safe-area-inset-top, 0px) + 66px);
+    gap: 3px;
+  }
 
-  .scene-controls { right: 10px; bottom: 10px; }
+  .navigation-hint__title { font-size: 12px; }
+  .navigation-hint__instruction { font-size: 8px; letter-spacing: 0.12em; }
+  .navigation-hint__instruction svg { width: 26px; }
+
+  .scene-controls {
+    right: calc(env(safe-area-inset-right, 0px) + 10px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+    min-height: 38px;
+  }
+
+  .scene-controls span { display: none; }
 
   .landmark-link {
-    --hotspot-size: 36px;
-    --expanded-width: 132px;
+    --hotspot-size: 52px;
+    --expanded-width: 52px;
+    padding: 7px;
+    overflow: visible;
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .landmark-link:hover,
+  .landmark-link:focus-visible {
+    width: var(--hotspot-size);
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  .landmark-link__label,
+  .landmark-link__arrow { display: none; }
+
+  .landmark-link__icon {
+    flex-basis: 38px;
+    width: 38px;
+    height: 38px;
   }
 
   .landmark-link__icon svg { width: 17px; height: 17px; }
-  .landmark-link__label { font-size: 10.5px; }
-  .landmark-link--tecnomago { --expanded-width: 132px; }
-  .landmark-link--apps { --expanded-width: 125px; }
-  .landmark-link--architecture { --expanded-width: 151px; }
-  .scene-controls span { display: none; }
+
+  .landmark-focus-shade {
+    background: linear-gradient(0deg, rgb(4 9 17 / 40%) 0 28%, rgb(4 9 17 / 4%) 62%);
+  }
+
+  .project-panel {
+    position: fixed;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    min-width: 0;
+    max-height: min(68dvh, 620px);
+    padding: 18px 18px calc(18px + env(safe-area-inset-bottom, 0px));
+    border-width: 1px 0 0;
+    border-radius: 20px 20px 0 0;
+    overscroll-behavior: contain;
+    transform: translateY(calc(100% + 20px));
+  }
+
+  .project-panel.is-open { transform: translateY(0); }
+
+  .project-panel__close {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    flex: 0 0 auto;
+    margin: 0 0 -30px auto;
+    background: rgb(255 255 255 / 8%);
+  }
+
+  .project-panel__header { min-height: 48px; padding-right: 42px; }
+  .project-panel__projects { grid-template-columns: 1fr; }
+  .project-panel__explore { min-height: 44px; }
+}
+
+@media (max-width: 480px) {
+  .logo-tamarind { width: clamp(96px, 29vw, 116px); }
+  .day-night-toggle__option b,
+  .day-night-toggle__divider { display: none; }
+  .day-night-toggle { width: 54px; justify-content: center; }
+  .navigation-hint { top: calc(env(safe-area-inset-top, 0px) + 61px); }
+  .project-panel { max-height: 72dvh; }
+  .project-panel h2 { font-size: 16px; }
+  .project-panel__description { margin: 14px 0; }
+}
+
+@media (max-width: 768px) and (orientation: landscape) and (max-height: 500px) {
+  .navigation-hint { display: none; }
+  .logo-tamarind { width: 104px; }
+  .project-panel {
+    left: 38%;
+    width: 62%;
+    max-height: 88dvh;
+    border-left-width: 1px;
+    border-radius: 20px 0 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -496,5 +880,7 @@ body.is-night-mode { background: #081526; }
   }
 
   .landmark-link,
-  .landmark-link__arrow { transition: none; }
+  .landmark-link__arrow,
+  .project-panel,
+  .landmark-focus-shade { transition: none; }
 }

@@ -16,12 +16,23 @@
         width="1983"
         height="793"
       />
-      <nav class="top-navigation" aria-label="Navegação principal">
+      <nav class="top-navigation" id="top-navigation" aria-label="Navegação principal">
         <a class="top-navigation__link" href="#home" aria-current="page">Home</a>
         <a class="top-navigation__link" href="#projetos">Projetos</a>
         <a class="top-navigation__link" href="#sobre">Sobre</a>
         <a class="top-navigation__link" href="#contato">Contato</a>
       </nav>
+      <button
+        class="mobile-menu-toggle"
+        type="button"
+        aria-label="Abrir menu"
+        aria-controls="top-navigation"
+        aria-expanded="false"
+      >
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+      </button>
       <button
         class="day-night-toggle"
         id="day-night-toggle"
@@ -43,7 +54,7 @@
         </span>
       </div>
       <div class="landmark-navigation" aria-label="Áreas criativas da ilha">
-        <a class="landmark-link landmark-link--tecnomago" data-landmark="tecnomago" href="#videos-de-ia">
+        <a class="landmark-link landmark-link--tecnomago" data-landmark="tecnomago" href="#videos-de-ia" aria-label="Vídeos de IA">
           <span class="landmark-link__icon landmark-link__icon--mage" aria-hidden="true">
             <img
               class="hotspot-icon"
@@ -57,7 +68,7 @@
           <span class="landmark-link__arrow" aria-hidden="true">→</span>
         </a>
 
-        <a class="landmark-link landmark-link--apps" data-landmark="apps" href="#apps-sites">
+        <a class="landmark-link landmark-link--apps" data-landmark="apps" href="#apps-sites" aria-label="APP / WEB">
           <span class="landmark-link__icon" aria-hidden="true">
             <img
               class="hotspot-icon"
@@ -71,7 +82,7 @@
           <span class="landmark-link__arrow" aria-hidden="true">→</span>
         </a>
 
-        <a class="landmark-link landmark-link--architecture" data-landmark="architecture" href="#3d-arquitetura">
+        <a class="landmark-link landmark-link--architecture" data-landmark="architecture" href="#3d-arquitetura" aria-label="3D / Arquitetura">
           <span class="landmark-link__icon" aria-hidden="true">
             <img
               class="hotspot-icon"
@@ -85,6 +96,49 @@
           <span class="landmark-link__arrow" aria-hidden="true">→</span>
         </a>
       </div>
+      <div class="landmark-focus-shade" aria-hidden="true"></div>
+      <aside
+        class="project-panel"
+        id="landmark-project-panel"
+        aria-labelledby="landmark-panel-title"
+        aria-hidden="true"
+      >
+        <button class="project-panel__close" type="button" aria-label="Fechar e voltar para a ilha">×</button>
+        <header class="project-panel__header">
+          <img
+            class="project-panel__icon"
+            src="/artwork/ui/icone-videos-ia.png"
+            alt=""
+            width="1254"
+            height="1254"
+          />
+          <div>
+            <h2 id="landmark-panel-title">Casa do Tecnomago</h2>
+            <p class="project-panel__subtitle">Vídeos IA</p>
+          </div>
+        </header>
+        <p class="project-panel__description">
+          Projetos de audiovisual, inteligência artificial e experimentação visual.
+        </p>
+        <div class="project-panel__projects" aria-label="Projetos em destaque">
+          <a class="project-card" href="#projeto-mundos-imaginados">
+            <span class="project-card__thumbnail project-card__thumbnail--worlds" aria-hidden="true"></span>
+            <span class="project-card__copy"><strong>Mundos Imaginados</strong><small>Filme · Vídeo IA</small></span>
+            <span class="project-card__cta">Ver projeto <span aria-hidden="true">→</span></span>
+          </a>
+          <a class="project-card" href="#projeto-memorias-sinteticas">
+            <span class="project-card__thumbnail project-card__thumbnail--memory" aria-hidden="true"></span>
+            <span class="project-card__copy"><strong>Memórias Sintéticas</strong><small>Experimento visual</small></span>
+            <span class="project-card__cta">Ver projeto <span aria-hidden="true">→</span></span>
+          </a>
+          <a class="project-card" href="#projeto-oraculo">
+            <span class="project-card__thumbnail project-card__thumbnail--oracle" aria-hidden="true"></span>
+            <span class="project-card__copy"><strong>Oráculo</strong><small>Motion · Inteligência artificial</small></span>
+            <span class="project-card__cta">Ver projeto <span aria-hidden="true">→</span></span>
+          </a>
+        </div>
+        <a class="project-panel__explore" href="#videos-de-ia">Explorar projetos <span aria-hidden="true">→</span></a>
+      </aside>
       <div class="scene-controls">
         <span>Blockout 3D · mova o mouse para observar a profundidade</span>
         <button id="recenter" type="button">Recentralizar</button>

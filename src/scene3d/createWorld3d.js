@@ -8,12 +8,16 @@ const TERRAIN_URL = '/artwork/models/ilha_texturizada.web.glb';
 const TECNOMAGO_HOUSE_URL = '/artwork/models/casanovatecnomago.web.glb';
 const ARCHITECTURE_HOUSE_URL = '/artwork/models/architecture_landmark.web.glb';
 const APPS_BASILICA_URL = '/artwork/models/basilica_texturizada.web.glb';
-const TREE_URL = '/artwork/models/arvore.runtime.web.glb';
+const TREE_TYPE_A_URL = '/artwork/models/tree_type_a.web.glb';
+const TREE_TYPE_B_URL = '/artwork/models/tree_type_b.web.glb';
+const TREE_LIGHT_CLUSTER_URL = '/artwork/models/tree_light_cluster.web.glb';
+const TREE_TECNOMAGO_URL = '/artwork/models/tree_tecnomago.web.glb';
 const TEMPLE_URL = '/artwork/models/templo.web.glb';
 const SETTLEMENT_HOUSE_URL = '/artwork/models/casasite.web.glb';
-const BACKGROUND_CASTLE_URL = '/artwork/models/fantastic_castle.web.glb';
+const BACKGROUND_CASTLE_URL = '/artwork/models/roman_temple.glb';
 const RIGGED_GOAT_URL = '/artwork/models/bode_rigged.web.glb';
 const WIZARD_NPC_URL = '/artwork/models/free_battlemage_wizard.web.glb';
+const CAMPFIRE_URL = '/artwork/models/campfire.web.glb';
 const COAST_DATA_URL = '/artwork/data/coastline.web.json';
 const TARGET_HORIZONTAL_SIZE = 150;
 
@@ -703,6 +707,88 @@ async function loadWizardNpc(terrain, tecnomagoHouse) {
   return { wizard, updateWizardNpc };
 }
 
+async function loadTecnomagoCampfire(terrain) {
+  const gltf = await loadGlbOnce(CAMPFIRE_URL, 'fogueira do Tecnomago', 'decor');
+  const source = gltf.scene;
+  source.updateMatrixWorld(true);
+
+  const bounds = new THREE.Box3().setFromObject(source);
+  const size = bounds.getSize(new THREE.Vector3());
+  const center = bounds.getCenter(new THREE.Vector3());
+  const targetWidth = 3.1;
+  const uniformScale = targetWidth / Math.max(size.x, size.z, 0.0001);
+  const requestedTarget = new THREE.Vector2(-52.5, 10);
+  const searchOffsets = [
+    [0, 0], [1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5],
+    [2.5, 2.5], [-2.5, 2.5], [2.5, -2.5], [-2.5, -2.5],
+  ];
+  const supportOffsets = [[0, 0], [-1.2, 0], [1.2, 0], [0, -1.2], [0, 1.2]];
+  let placement = null;
+  for (const [dx, dz] of searchOffsets) {
+    const x = requestedTarget.x + dx;
+    const z = requestedTarget.y + dz;
+    const supports = supportOffsets
+      .map(([sx, sz]) => terrainSurfaceAt(terrain, x + sx, z + sz))
+      .filter(Boolean);
+    if (supports.length !== supportOffsets.length) continue;
+    if (supports.some((surface) => surface.normal.y < 0.72)) continue;
+    const heights = supports.map((surface) => surface.point.y).sort((a, b) => a - b);
+    if (heights.at(-1) - heights[0] > 0.72) continue;
+    placement = { x, z, y: heights[2], heights };
+    break;
+  }
+  if (!placement) throw new Error('Não foi encontrada uma base segura para a fogueira do Tecnomago.');
+
+  const yaw = 0.34;
+  const scaledCenter = center.clone().multiplyScalar(uniformScale);
+  scaledCenter.applyAxisAngle(THREE.Object3D.DEFAULT_UP, yaw);
+  const campfire = new THREE.Group();
+  campfire.name = 'TecnomagoCampfire';
+  campfire.scale.setScalar(uniformScale);
+  campfire.rotation.y = yaw;
+  campfire.position.set(
+    placement.x - scaledCenter.x,
+    placement.y - bounds.min.y * uniformScale + 0.012,
+    placement.z - scaledCenter.z,
+  );
+  campfire.add(source);
+
+  let meshCount = 0;
+  const materials = new Set();
+  source.traverse((object) => {
+    if (!object.isMesh) return;
+    meshCount += 1;
+    object.castShadow = false;
+    object.receiveShadow = true;
+    object.frustumCulled = true;
+    const meshMaterials = Array.isArray(object.material) ? object.material : [object.material];
+    meshMaterials.filter(Boolean).forEach((material) => materials.add(material));
+  });
+
+  const glow = new THREE.PointLight('#ff9a45', 0.08, 5.5, 2.1);
+  glow.name = 'TecnomagoCampfireGlow';
+  glow.position.set(center.x, bounds.min.y + size.y * 0.46, center.z);
+  glow.castShadow = false;
+  campfire.add(glow);
+  campfire.userData.update = (nightAmount, elapsed) => {
+    const flicker = 0.92 + Math.sin(elapsed * 5.7) * 0.035 + Math.sin(elapsed * 8.9) * 0.02;
+    glow.intensity = THREE.MathUtils.lerp(0.08, 3.2, nightAmount) * flicker;
+  };
+
+  console.info('[Tamarind] Fogueira do Tecnomago carregada.', JSON.stringify({
+    position: campfire.position.toArray(),
+    target: [placement.x, placement.y, placement.z],
+    scale: uniformScale,
+    rotationY: yaw,
+    supportHeights: placement.heights,
+    meshes: meshCount,
+    materials: [...materials].map((material) => material.name || '(sem nome)'),
+    animations: gltf.animations.length,
+    localLight: { dayIntensity: 0.08, nightIntensity: 3.2, distance: 5.5 },
+  }));
+  return campfire;
+}
+
 function sampleTerrainOutline(terrain, center, segments = 112) {
   terrain.updateMatrixWorld(true);
   const radii = new Float32Array(segments);
@@ -1342,106 +1428,297 @@ async function loadOrientalPagoda(terrain) {
   return templeGroup;
 }
 
-async function loadInstancedTrees(terrain, backgroundPlacements = []) {
-  const gltf = await loadGlbOnce(TREE_URL, 'árvores');
-  const source = gltf.scene;
-  source.updateMatrixWorld(true);
+async function loadInstancedTrees(terrain, _backgroundPlacements = []) {
+  const vegetation = new THREE.Group();
+  vegetation.name = 'GlbTreeVisualPrototype';
 
-  const sourceBounds = new THREE.Box3().setFromObject(source);
-  const sourceSize = sourceBounds.getSize(new THREE.Vector3());
-  const sourceCenter = sourceBounds.getCenter(new THREE.Vector3());
-  const targetHeight = 7.2;
-  const baseScale = targetHeight / Math.max(sourceSize.y, 0.0001);
-  const requestedPlacements = [
-    { x: -58, z: -14, yaw: 0.35, scale: 1.08 },
-    { x: -27, z: 0, yaw: 2.05, scale: 0.92 },
-    { x: -35, z: -22, yaw: 4.7, scale: 0.84 },
-    { x: -35, z: 20, yaw: 1.2, scale: 1.0 },
-    { x: -10, z: 12, yaw: 5.55, scale: 0.88 },
-    { x: 8, z: -15, yaw: 3.3, scale: 0.96 },
-    { x: 49, z: -3, yaw: 0.8, scale: 1.12 },
-    { x: 43, z: -23, yaw: 5.05, scale: 0.82 },
-    { x: 22, z: 19, yaw: 2.7, scale: 1.05 },
-    { x: -5, z: 31, yaw: 4.15, scale: 0.9 },
-    { x: 31, z: 39, yaw: 1.75, scale: 1.16 },
-    { x: -28, z: 57, yaw: 3.85, scale: 0.98 },
-    { x: -37, z: 47, yaw: 0.15, scale: 0.86 },
-    ...backgroundPlacements,
-  ];
-  const searchOffsets = [
-    [0, 0], [2, 0], [-2, 0], [0, 2], [0, -2],
-    [3, 3], [-3, 3], [3, -3], [-3, -3],
-    [6, 0], [-6, 0], [0, 6], [0, -6],
-  ];
-  const placements = requestedPlacements.flatMap((requested) => {
-    for (const [dx, dz] of searchOffsets) {
-      const x = requested.x + dx;
-      const z = requested.z + dz;
-      const surface = terrainSurfaceAt(terrain, x, z);
-      if (!surface || surface.point.y < 1.2 || surface.normal.y < 0.74) continue;
-      return [{
-        x,
-        y: surface.point.y + 0.025,
-        z,
-        yaw: requested.yaw,
-        scale: baseScale * requested.scale,
-      }];
+  // The two downloads are primed only after the main landmarks. Parsing is
+  // deliberately sequential so the secondary phase does not create one large
+  // main-thread spike.
+  const typeAGltf = await loadGlbOnce(TREE_TYPE_A_URL, 'árvore Tipo A', 'inhabited');
+  const typeBGltf = await runWhenIdle(() => (
+    loadGlbOnce(TREE_TYPE_B_URL, 'árvore Tipo B', 'inhabited')
+  ));
+  const lightTreeGltf = await runWhenIdle(() => (
+    loadGlbOnce(TREE_LIGHT_CLUSTER_URL, 'árvore leve do castelo e templo', 'inhabited')
+  ));
+  const tecnomagoTreeGltf = await runWhenIdle(() => (
+    loadGlbOnce(TREE_TECNOMAGO_URL, 'árvore estilizada do Tecnomago', 'inhabited')
+  ));
+
+  const bakeStaticGeometry = (mesh) => {
+    const geometry = mesh.geometry.clone();
+    if (mesh.isSkinnedMesh && geometry.attributes.skinIndex && geometry.attributes.skinWeight) {
+      mesh.skeleton.update();
+      const position = geometry.attributes.position;
+      const vertex = new THREE.Vector3();
+      for (let index = 0; index < position.count; index += 1) {
+        vertex.fromBufferAttribute(position, index);
+        mesh.applyBoneTransform(index, vertex);
+        position.setXYZ(index, vertex.x, vertex.y, vertex.z);
+      }
+      position.needsUpdate = true;
+      geometry.deleteAttribute('skinIndex');
+      geometry.deleteAttribute('skinWeight');
+      geometry.computeVertexNormals();
     }
-    if (requested.optional) return [];
-    throw new Error(`Sem superfície segura para a árvore em ${requested.x}, ${requested.z}.`);
+    geometry.applyMatrix4(mesh.matrixWorld);
+    return geometry;
+  };
+
+  const prepareSpecies = ({ gltf, label, targetHeight, selectMesh }) => {
+    const source = gltf.scene;
+    source.updateMatrixWorld(true);
+    const parts = [];
+    source.traverse((object) => {
+      if (!object.isMesh || !selectMesh(object)) return;
+      parts.push({
+        geometry: bakeStaticGeometry(object),
+        material: object.material,
+        sourceName: object.name,
+      });
+    });
+    if (!parts.length) throw new Error(`${label}: nenhum mesh adequado encontrado.`);
+
+    const bounds = new THREE.Box3();
+    parts.forEach(({ geometry }) => {
+      geometry.computeBoundingBox();
+      bounds.union(geometry.boundingBox);
+    });
+    const size = bounds.getSize(new THREE.Vector3());
+    const center = bounds.getCenter(new THREE.Vector3());
+    const normalize = new THREE.Matrix4().makeTranslation(-center.x, -bounds.min.y, -center.z);
+    parts.forEach(({ geometry }) => {
+      geometry.applyMatrix4(normalize);
+      geometry.computeBoundingBox();
+      geometry.computeBoundingSphere();
+    });
+
+    return {
+      label,
+      parts,
+      baseScale: targetHeight / Math.max(size.y, 0.0001),
+      sourceHeight: size.y,
+      triangles: parts.reduce((total, { geometry }) => (
+        total + (geometry.index?.count ?? geometry.attributes.position.count) / 3
+      ), 0),
+    };
+  };
+
+  const typeA = prepareSpecies({
+    gltf: typeAGltf,
+    label: 'Tipo A',
+    targetHeight: 7.2,
+    // This GLB is a collection containing a dead tree, stump, trunk and two
+    // trees. The named living tree is the intended species prototype.
+    selectMesh: (mesh) => mesh.name === 'Object_11'
+      || `${mesh.name} ${mesh.geometry?.name ?? ''}`.toLowerCase().includes('tree:tree_'),
+  });
+  const typeB = prepareSpecies({
+    gltf: typeBGltf,
+    label: 'Tipo B',
+    targetHeight: 7.7,
+    selectMesh: () => true,
+  });
+  // The lightweight GLB contains two complete tree variants at the same
+  // origin. They are instanced independently instead of being overlapped.
+  const lightTreeOne = prepareSpecies({
+    gltf: lightTreeGltf,
+    label: 'Leve 1',
+    targetHeight: 6.3,
+    selectMesh: (mesh) => `${mesh.name} ${mesh.geometry?.name ?? ''}`
+      .toLowerCase().replace(/[^a-z0-9]/g, '').startsWith('tree1'),
+  });
+  const lightTreeTwo = prepareSpecies({
+    gltf: lightTreeGltf,
+    label: 'Leve 2',
+    targetHeight: 5.9,
+    selectMesh: (mesh) => `${mesh.name} ${mesh.geometry?.name ?? ''}`
+      .toLowerCase().replace(/[^a-z0-9]/g, '').startsWith('tree2'),
+  });
+  const tecnomagoTree = prepareSpecies({
+    gltf: tecnomagoTreeGltf,
+    label: 'Tecnomago',
+    targetHeight: 5.8,
+    selectMesh: () => true,
   });
 
-  const vegetation = new THREE.Group();
-  vegetation.name = 'InstancedIslandTrees';
-  const normalize = new THREE.Matrix4().makeTranslation(
-    -sourceCenter.x,
-    -sourceBounds.min.y,
-    -sourceCenter.z,
-  );
-  const dummy = new THREE.Object3D();
-  source.traverse((object) => {
-    if (!object.isMesh || placements.length === 0) return;
-    // The source GLB contains LOD0 and LOD1 in the same scene. Instancing both
-    // stacked the foliage versions and repeated the boxy rose-bush ground
-    // clusters at every tree placement. Keep the complete detailed tree only.
-    if (!object.name.includes('LOD0')) return;
-    const geometry = object.geometry.clone();
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
-    const visibleGroups = geometry.groups.filter((group) => (
-      materials[group.materialIndex]?.name !== 'Rose Bush Leaves'
-    ));
-    if (geometry.groups.length > 0) {
-      geometry.clearGroups();
-      visibleGroups.forEach((group) => {
-        geometry.addGroup(group.start, group.count, group.materialIndex);
+  const searchOffsets = [
+    [0, 0], [1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5],
+    [2.5, 2.5], [-2.5, 2.5], [2.5, -2.5], [-2.5, -2.5],
+    [4, 0], [-4, 0], [0, 4], [0, -4],
+  ];
+  const requests = [
+    { species: typeA, x: -37, z: 47, yaw: 0.35, scale: 0.94, tiltX: -0.018, tiltZ: 0.025 },
+    { species: typeA, x: -42, z: 39, yaw: 2.25, scale: 0.84, tiltX: 0.02, tiltZ: -0.018 },
+    { species: typeB, x: -46, z: 47, yaw: 4.4, scale: 0.9, tiltX: 0.015, tiltZ: 0.02 },
+    { species: typeB, x: -34, z: 39, yaw: 5.55, scale: 1.02, tiltX: -0.02, tiltZ: -0.015 },
+  ];
+  const placements = [];
+  requests.forEach((request) => {
+    for (const [dx, dz] of searchOffsets) {
+      const x = request.x + dx;
+      const z = request.z + dz;
+      if (placements.some((tree) => Math.hypot(tree.x - x, tree.z - z) < 3.2)) continue;
+      const surface = terrainSurfaceAt(terrain, x, z);
+      if (!surface || surface.point.y < 1.2 || surface.normal.y < 0.64) continue;
+      placements.push({ ...request, x, y: surface.point.y + 0.015, z });
+      return;
+    }
+  });
+  if (placements.length !== requests.length) {
+    throw new Error(`Protótipo de árvores: ${placements.length}/${requests.length} pontos seguros.`);
+  }
+
+  const tecnomagoCenter = new THREE.Vector2(-38.5, 4);
+  const tecnomagoRequests = [
+    { x: -50, z: 1, yaw: 0.45, scale: 0.82, tiltX: -0.012, tiltZ: 0.018 },
+    { x: -46, z: -6, yaw: 2.3, scale: 1.08, tiltX: 0.015, tiltZ: -0.012 },
+    { x: -32, z: -8, yaw: 4.55, scale: 1.2, tiltX: -0.018, tiltZ: -0.01 },
+    { x: -26, z: 0.5, yaw: 5.7, scale: 0.9, tiltX: 0.01, tiltZ: 0.016 },
+  ];
+  tecnomagoRequests.forEach((request) => {
+    for (const [dx, dz] of searchOffsets) {
+      const x = request.x + dx;
+      const z = request.z + dz;
+      if (Math.hypot(x - tecnomagoCenter.x, z - tecnomagoCenter.y) < 10.8) continue;
+      if (placements.some((tree) => Math.hypot(tree.x - x, tree.z - z) < 2.8)) continue;
+      const surface = terrainSurfaceAt(terrain, x, z);
+      if (!surface || surface.point.y < 1.2 || surface.normal.y < 0.65) continue;
+      placements.push({
+        ...request,
+        species: tecnomagoTree,
+        region: 'tecnomago',
+        x,
+        y: surface.point.y + 0.012,
+        z,
+      });
+      return;
+    }
+  });
+  if (placements.filter((tree) => tree.region === 'tecnomago').length !== 4) {
+    throw new Error('Não foi possível assentar as quatro árvores do Tecnomago com segurança.');
+  }
+
+  const castleRequests = [];
+  _backgroundPlacements.forEach((seed, index) => {
+    const species = index % 2 === 0 ? lightTreeOne : lightTreeTwo;
+    const direction = index % 2 === 0 ? 1 : -1;
+    castleRequests.push(
+      {
+        species, region: 'castle', x: seed.x, z: seed.z, yaw: seed.yaw,
+        scale: 0.78 + (index % 4) * 0.11, tiltX: 0.01 * direction, tiltZ: -0.016 * direction,
+      },
+      {
+        species: species === lightTreeOne ? lightTreeTwo : lightTreeOne,
+        region: 'castle', x: seed.x + direction * 2.8, z: seed.z + 2.4,
+        yaw: seed.yaw + 1.75, scale: 0.86 + (index % 3) * 0.12,
+        tiltX: -0.014 * direction, tiltZ: 0.012 * direction,
+      },
+    );
+    if (index < 4) {
+      castleRequests.push({
+        species,
+        region: 'castle',
+        x: seed.x - direction * 2.2,
+        z: seed.z - 2.7,
+        yaw: seed.yaw + 3.2,
+        scale: 0.75 + index * 0.1,
+        tiltX: 0.012 * direction,
+        tiltZ: 0.018 * direction,
       });
     }
-    geometry.applyMatrix4(object.matrixWorld);
-    geometry.applyMatrix4(normalize);
-    const instanced = new THREE.InstancedMesh(geometry, object.material, placements.length);
-    instanced.name = `IslandTrees_${object.name || 'Mesh'}`;
-    instanced.castShadow = false;
-    instanced.receiveShadow = true;
-    instanced.frustumCulled = true;
-    placements.forEach((tree, index) => {
-      dummy.position.set(tree.x, tree.y, tree.z);
-      dummy.rotation.set(0, tree.yaw, 0);
-      dummy.scale.setScalar(tree.scale);
-      dummy.updateMatrix();
-      instanced.setMatrixAt(index, dummy.matrix);
-    });
-    instanced.instanceMatrix.needsUpdate = true;
-    instanced.computeBoundingSphere();
-    vegetation.add(instanced);
+  });
+  const templeCoordinates = [
+    [-31, 47], [-34, 53], [-30, 59], [-26, 65], [-18, 66], [-10, 65], [-6, 59],
+    [-5, 50], [-8, 43], [-14, 40], [-23, 40], [-28, 43], [-2, 55], [-22, 67],
+  ];
+  const templeRequests = templeCoordinates.map(([x, z], index) => ({
+    species: index % 2 === 0 ? lightTreeTwo : lightTreeOne,
+    region: 'temple',
+    x,
+    z,
+    yaw: (index * 2.39996 + 0.35) % (Math.PI * 2),
+    scale: 0.76 + ((index * 7) % 11) * 0.047,
+    tiltX: ((index % 3) - 1) * 0.014,
+    tiltZ: ((index % 5) - 2) * 0.009,
+  }));
+  const forestRequests = [...castleRequests, ...templeRequests];
+  forestRequests.forEach((request) => {
+    for (const [dx, dz] of searchOffsets) {
+      const x = request.x + dx;
+      const z = request.z + dz;
+      if (placements.some((tree) => Math.hypot(tree.x - x, tree.z - z) < 2.35)) continue;
+      const surface = terrainSurfaceAt(terrain, x, z);
+      if (!surface || surface.point.y < 1.2 || surface.normal.y < 0.62) continue;
+      placements.push({ ...request, x, y: surface.point.y + 0.012, z });
+      return;
+    }
   });
 
-  console.info('[Tamarind] Vegetação instanciada carregada.', {
-    instances: placements.length,
-    sourceMeshes: vegetation.children.length,
-    removedArtificialPatches: 'LOD1 + Rose Bush Leaves',
-    targetHeight,
+  const dummy = new THREE.Object3D();
+  const speciesList = [typeA, typeB, lightTreeOne, lightTreeTwo, tecnomagoTree];
+  let drawCalls = 0;
+  speciesList.forEach((species) => {
+    const instances = placements.filter((placement) => placement.species === species);
+    species.parts.forEach(({ geometry, material, sourceName }, partIndex) => {
+      const instanced = new THREE.InstancedMesh(geometry, material, instances.length);
+      instanced.name = `Tree${species.label.replace(' ', '')}_${sourceName || partIndex}`;
+      instanced.castShadow = false;
+      instanced.receiveShadow = true;
+      instanced.frustumCulled = true;
+      instances.forEach((tree, index) => {
+        dummy.position.set(tree.x, tree.y, tree.z);
+        dummy.rotation.set(tree.tiltX, tree.yaw, tree.tiltZ);
+        dummy.scale.setScalar(species.baseScale * tree.scale);
+        dummy.updateMatrix();
+        instanced.setMatrixAt(index, dummy.matrix);
+      });
+      instanced.instanceMatrix.needsUpdate = true;
+      instanced.computeBoundingBox();
+      instanced.computeBoundingSphere();
+      vegetation.add(instanced);
+      drawCalls += Array.isArray(material) ? material.length : 1;
+    });
   });
+
   vegetation.userData.placements = placements.map(({ x, z }) => ({ x, z }));
+  vegetation.userData.prototypeStats = {
+    files: [
+      { type: 'A', bytes: 1379956, triangles: Math.round(typeA.triangles) },
+      { type: 'B', bytes: 1741100, triangles: Math.round(typeB.triangles) },
+      {
+        type: 'Leve castelo/templo', bytes: 173352,
+        triangles: Math.round(lightTreeOne.triangles + lightTreeTwo.triangles),
+      },
+      { type: 'Tecnomago', bytes: 920960, triangles: Math.round(tecnomagoTree.triangles) },
+    ],
+    instances: {
+      A: placements.filter((tree) => tree.species === typeA).length,
+      B: placements.filter((tree) => tree.species === typeB).length,
+      lightweight: placements.filter((tree) => (
+        tree.species === lightTreeOne || tree.species === lightTreeTwo
+      )).length,
+      tecnomago: placements.filter((tree) => tree.species === tecnomagoTree).length,
+    },
+    drawCalls,
+    lightweightDrawCalls: lightTreeOne.parts.length + lightTreeTwo.parts.length,
+    distribution: {
+      castle: placements.filter((tree) => tree.region === 'castle').length,
+      temple: placements.filter((tree) => tree.region === 'temple').length,
+      tecnomago: placements.filter((tree) => tree.region === 'tecnomago').length,
+    },
+    reuse: 'InstancedMesh com geometry/material/texturas compartilhados',
+  };
+  console.info(
+    '[Tamarind] Protótipo GLB de árvores carregado.',
+    JSON.stringify({
+      ...vegetation.userData.prototypeStats,
+      sourceHeights: [typeA.sourceHeight, typeB.sourceHeight],
+      testPositions: placements.map(({ species, x, y, z }) => [species.label, x, y, z]),
+      typeAStaticPose: 'rig removido após bake da pose-base para instancing',
+    }),
+  );
   return vegetation;
 }
 
@@ -2609,7 +2886,14 @@ export async function createWorld3d() {
       primeGlbDownload(TEMPLE_URL, 'templo oriental', 'inhabited');
       primeGlbDownload(BACKGROUND_CASTLE_URL, 'castelo ao fundo', 'inhabited');
       primeGlbDownload(SETTLEMENT_HOUSE_URL, 'casas da vila', 'inhabited');
-      primeGlbDownload(TREE_URL, 'árvores', 'inhabited');
+      primeGlbDownload(TREE_TYPE_A_URL, 'árvore Tipo A', 'inhabited');
+      primeGlbDownload(TREE_TYPE_B_URL, 'árvore Tipo B', 'inhabited');
+      primeGlbDownload(
+        TREE_LIGHT_CLUSTER_URL,
+        'árvore leve do castelo e templo',
+        'inhabited',
+      );
+      primeGlbDownload(TREE_TECNOMAGO_URL, 'árvore estilizada do Tecnomago', 'inhabited');
       primeGlbDownload(RIGGED_GOAT_URL, 'bode', 'inhabited');
       primeGlbDownload(WIZARD_NPC_URL, 'mago NPC', 'inhabited');
       const pagoda = await runWhenIdle(() => loadOrientalPagoda(terrainGroup));
@@ -2658,12 +2942,15 @@ export async function createWorld3d() {
       onPhaseComplete?.('inhabited', getMetrics().inhabitedReadyMs);
 
       console.time('[Tamarind] fase 4 — acabamento costeiro');
+      primeGlbDownload(CAMPFIRE_URL, 'fogueira do Tecnomago', 'decor');
       const harbor = await runWhenIdle(() => createHarbor(terrainGroup, ocean.position.y));
       addWorldAsset('harbor', harbor);
       const coast = await runWhenIdle(() => (
         createCoastalTransition(terrainGroup, worldBounds, ocean.position.y)
       ));
       addWorldAsset('coast', coast);
+      const campfire = await runWhenIdle(() => loadTecnomagoCampfire(terrainGroup));
+      addWorldAsset('campfire', campfire);
       console.timeEnd('[Tamarind] fase 4 — acabamento costeiro');
       getMetrics().decorReadyMs = performance.now() - getMetrics().startedAt;
       onPhaseComplete?.('decor', getMetrics().decorReadyMs);
@@ -2671,6 +2958,7 @@ export async function createWorld3d() {
       return {
         harbor,
         coast,
+        campfire,
         millPond,
         windmills,
         settlement,
