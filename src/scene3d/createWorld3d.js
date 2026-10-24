@@ -25,6 +25,13 @@ const gltfLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const glbDownloads = new Map();
 const gltfRequests = new Map();
 
+function emitAssetDebug(status, detail) {
+  if (new URLSearchParams(window.location.search).get('debugMobile') !== '1') return;
+  window.dispatchEvent(new CustomEvent('tamarind:asset', {
+    detail: { status, ...detail },
+  }));
+}
+
 function getMetrics() {
   const metrics = window.__tamarindMetrics ?? (window.__tamarindMetrics = {
     startedAt: performance.now(),
@@ -46,6 +53,7 @@ function primeGlbDownload(url, label, phase = 'secondary') {
       totalMs: 0,
     };
     getMetrics().assets.push(metric);
+    emitAssetDebug('start', { label, url, phase });
     const startedAt = performance.now();
     const request = fetch(url, { cache: 'force-cache' })
       .then((response) => {
@@ -60,6 +68,7 @@ function primeGlbDownload(url, label, phase = 'secondary') {
       .catch((error) => {
         glbDownloads.delete(url);
         metric.error = error.message;
+        emitAssetDebug('error', { label, url, phase, error: error.message });
         throw error;
       });
     glbDownloads.set(url, request);
@@ -86,12 +95,20 @@ function loadGlbOnce(url, label, phase = 'secondary') {
           parseMs: Math.round(metric.parseMs),
           totalMs: Math.round(metric.totalMs),
         });
+        emitAssetDebug('success', {
+          label,
+          url,
+          phase,
+          elapsedMs: metric.totalMs,
+          bytes: metric.bytes,
+        });
         return gltf;
       })
       .finally(() => console.timeEnd(timerLabel))
       .catch((error) => {
         gltfRequests.delete(url);
         console.error('[Tamarind] Falha ao carregar GLB.', { asset: label, url, phase, error });
+        emitAssetDebug('error', { label, url, phase, error: error.message || String(error) });
         throw error;
       });
     gltfRequests.set(url, request);
@@ -2834,7 +2851,12 @@ export async function createWorld3d() {
   world.add(ocean);
 
   let secondaryLoadPromise = null;
-  const startSecondaryLoad = ({ onAssetLoaded, onPhaseComplete } = {}) => {
+  const startSecondaryLoad = ({
+    onAssetLoaded,
+    onPhaseComplete,
+    debugMobile = false,
+    debugStage = 8,
+  } = {}) => {
     if (secondaryLoadPromise) return secondaryLoadPromise;
 
     secondaryLoadPromise = (async () => {
@@ -2880,6 +2902,106 @@ export async function createWorld3d() {
       console.timeEnd('[Tamarind] fase 2 — landmarks principais');
       getMetrics().landmarksReadyMs = performance.now() - getMetrics().startedAt;
       onPhaseComplete?.('landmarks', getMetrics().landmarksReadyMs);
+
+      if (debugMobile) {
+        let pagoda = null;
+        let castleResult = null;
+        let backgroundCastle = null;
+        let settlement = null;
+        let vegetation = null;
+        let goatResult = { goat: null, updateGoatWalk: null };
+        let wizardResult = { wizard: null, updateWizardNpc: null };
+        let campfire = null;
+        let millPond = null;
+
+        if (debugStage >= 1) {
+          primeGlbDownload(BACKGROUND_CASTLE_URL, 'castelo ao fundo', 'debug-castle');
+          castleResult = await runWhenIdle(() => loadBackgroundCastle(terrainGroup));
+          backgroundCastle = addWorldAsset('castle', castleResult.castle);
+          onPhaseComplete?.('debug + castelo', performance.now() - getMetrics().startedAt);
+        }
+
+        if (debugStage >= 2) {
+          primeGlbDownload(TEMPLE_URL, 'templo oriental', 'debug-temple');
+          pagoda = await runWhenIdle(() => loadOrientalPagoda(terrainGroup));
+          addWorldAsset('pagoda', pagoda);
+          onPhaseComplete?.('debug + templo', performance.now() - getMetrics().startedAt);
+        }
+
+        if (debugStage >= 3) {
+          primeGlbDownload(SETTLEMENT_HOUSE_URL, 'casas da vila', 'debug-settlement');
+          settlement = await runWhenIdle(() => createMedievalSettlement(terrainGroup, ocean.position.y));
+          addWorldAsset('settlement', settlement);
+          onPhaseComplete?.('debug + casas', performance.now() - getMetrics().startedAt);
+        }
+
+        if (debugStage >= 4) {
+          primeGlbDownload(TREE_TYPE_A_URL, 'árvore Tipo A', 'debug-trees');
+          primeGlbDownload(TREE_TYPE_B_URL, 'árvore Tipo B', 'debug-trees');
+          primeGlbDownload(TREE_LIGHT_CLUSTER_URL, 'árvore leve do castelo e templo', 'debug-trees');
+          primeGlbDownload(TREE_TECNOMAGO_URL, 'árvore estilizada do Tecnomago', 'debug-trees');
+          vegetation = await runWhenIdle(() => (
+            loadInstancedTrees(terrainGroup, castleResult?.treePlacements || [])
+          ));
+          addWorldAsset('vegetation', vegetation);
+          onPhaseComplete?.('debug + árvores', performance.now() - getMetrics().startedAt);
+        }
+
+        if (debugStage >= 5) {
+          primeGlbDownload(RIGGED_GOAT_URL, 'bode', 'debug-goat');
+          const avoidObjects = [
+            tecnomagoHouse,
+            architectureHouse,
+            appsBasilica,
+            pagoda,
+            backgroundCastle,
+          ].filter(Boolean);
+          settlement?.traverse((object) => {
+            if (object.name === 'DetailedSettlementHouse') avoidObjects.push(object);
+          });
+          goatResult = await runWhenIdle(() => loadRiggedGoat(terrainGroup, {
+            treePlacements: vegetation?.userData?.placements || [],
+            avoidObjects,
+          }));
+          addWorldAsset('goat', goatResult.goat);
+          onPhaseComplete?.('debug + bode', performance.now() - getMetrics().startedAt);
+        }
+
+        if (debugStage >= 6) {
+          primeGlbDownload(WIZARD_NPC_URL, 'mago NPC', 'debug-wizard');
+          wizardResult = await runWhenIdle(() => loadWizardNpc(terrainGroup, tecnomagoHouse));
+          addWorldAsset('wizard', wizardResult.wizard);
+          onPhaseComplete?.('debug + mago', performance.now() - getMetrics().startedAt);
+        }
+
+        if (debugStage >= 7) {
+          primeGlbDownload(CAMPFIRE_URL, 'fogueira do Tecnomago', 'debug-campfire');
+          campfire = await runWhenIdle(() => loadTecnomagoCampfire(terrainGroup));
+          addWorldAsset('campfire', campfire);
+          onPhaseComplete?.('debug + campfire', performance.now() - getMetrics().startedAt);
+        }
+
+        if (debugStage >= 8) {
+          millPond = await runWhenIdle(() => createProceduralMillPond(terrainGroup));
+          addWorldAsset('millPond', millPond);
+          onPhaseComplete?.('debug + brejo', performance.now() - getMetrics().startedAt);
+        }
+
+        return {
+          harbor: null,
+          coast: null,
+          campfire,
+          millPond,
+          windmills: null,
+          settlement,
+          vegetation,
+          goat: goatResult.goat,
+          updateGoatWalk: goatResult.updateGoatWalk,
+          wizard: wizardResult.wizard,
+          updateWizardNpc: wizardResult.updateWizardNpc,
+          landmarks,
+        };
+      }
 
       console.time('[Tamarind] fase 3 — mundo habitado');
       // Network work overlaps inside this phase while each parse/integration is

@@ -4,6 +4,12 @@ import { createCamera3d, resizeCamera3d } from './scene3d/createCamera3d.js';
 import { createRenderer } from './scene/createRenderer.js';
 import { createWorld3d } from './scene3d/createWorld3d.js';
 import { updateBearProcedural } from './scene3d/createBearCharacter3d.js';
+import {
+  attachMobileDebug,
+  mobileDebugEnabled,
+  mobileDebugStage,
+  setMobileDebugPhase,
+} from './mobileDebug.js';
 
 console.time('[Tamarind] tempo até first render');
 console.time('[Tamarind] tempo até mundo completo');
@@ -47,6 +53,8 @@ const renderer = createRenderer(container);
 tamarindMetrics.rendererCreatedMs = performance.now();
 tamarindMetrics.rendererCreationMs = performance.now() - rendererStartedAt;
 const camera = createCamera3d(container.clientWidth / container.clientHeight);
+attachMobileDebug({ renderer, camera, container });
+setMobileDebugPhase('carregando ilha/base');
 const pointer = new THREE.Vector2();
 const easedPointer = new THREE.Vector2();
 let orbitYaw = 0;
@@ -557,6 +565,7 @@ async function initializeScene() {
     camera.lookAt(camera.userData.baseTarget);
     renderer.render(scene, camera);
     reportMobileAudit('first-render');
+    setMobileDebugPhase('first render pronto');
     tamarindMetrics.firstRenderMs = performance.now();
     console.timeEnd('[Tamarind] tempo até first render');
     status.remove();
@@ -787,6 +796,8 @@ async function initializeScene() {
     initialized = true;
 
     startSecondaryLoad({
+      debugMobile: mobileDebugEnabled,
+      debugStage: mobileDebugStage,
       onAssetLoaded: ({ key, object }) => {
         if (key === 'coast') coast = object;
         if (key === 'millPond') millPond = object;
@@ -797,6 +808,7 @@ async function initializeScene() {
         console.info(`[Tamarind] Asset secundário integrado: ${key}.`);
       },
       onPhaseComplete: (phase, elapsedMs) => {
+        setMobileDebugPhase(`${phase} pronto · ${Math.round(elapsedMs)}ms`);
         console.info(`[Tamarind] Fase ${phase} pronta em ${Math.round(elapsedMs)} ms.`);
       },
     }).then((secondary) => {
@@ -805,6 +817,7 @@ async function initializeScene() {
       dayNightController.refresh();
       dayNightController.update(nightMix);
       refreshLandmarkAnchors();
+      setMobileDebugPhase('carregamento concluído');
       const resources = performance.getEntriesByType('resource');
       const glbResources = resources.filter((entry) => entry.name.includes('.glb'));
       tamarindMetrics.worldCompleteMs = performance.now();
@@ -864,10 +877,12 @@ async function initializeScene() {
       console.timeEnd('[Tamarind] tempo até mundo completo');
     }).catch((error) => {
       console.error('Falha ao carregar assets secundários do mundo Tamarind.', error);
+      setMobileDebugPhase(`ERRO secundário: ${error?.message || error}`);
       console.timeEnd('[Tamarind] tempo até mundo completo');
     });
   } catch (error) {
     console.error('Falha ao carregar o mundo 3D Tamarind.', error);
+    setMobileDebugPhase(`ERRO crítico: ${error?.message || error}`);
     status.textContent = 'Não foi possível carregar o mundo 3D.';
     status.dataset.error = 'true';
   }
@@ -880,7 +895,7 @@ const syncViewport = () => {
   const width = container.clientWidth;
   const height = container.clientHeight;
   if (!width || !height) return;
-  const pixelRatioCap = mobileViewport.matches ? 1.25 : 1.5;
+  const pixelRatioCap = mobileDebugEnabled ? 1 : (mobileViewport.matches ? 1.25 : 1.5);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, pixelRatioCap));
   renderer.setSize(width, height);
   resizeCamera3d(camera, width / height);

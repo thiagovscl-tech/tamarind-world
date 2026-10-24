@@ -667,6 +667,62 @@ body.is-night-mode { background: #081526; }
 
 #scene-status[data-error='true'] { color: #ffb7a7; }
 
+.mobile-debug-panel {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 6px);
+  left: calc(env(safe-area-inset-left, 0px) + 6px);
+  z-index: 1000;
+  width: min(370px, calc(100vw - 12px));
+  max-height: min(48dvh, 430px);
+  padding: 8px;
+  overflow: auto;
+  border: 1px solid rgb(91 255 177 / 65%);
+  border-radius: 8px;
+  background: rgb(3 9 15 / 92%);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 42%);
+  color: #adffd6;
+  font: 600 10px/1.35 ui-monospace, SFMono-Regular, Consolas, monospace;
+  text-align: left;
+  white-space: normal;
+  pointer-events: auto;
+}
+
+.mobile-debug-panel__header {
+  margin-bottom: 6px;
+  color: #fff1a6;
+  letter-spacing: 0.06em;
+}
+
+.mobile-debug-panel__stages {
+  display: flex;
+  gap: 3px;
+  padding-bottom: 6px;
+  overflow-x: auto;
+}
+
+.mobile-debug-panel__stages a {
+  flex: 0 0 auto;
+  padding: 3px 5px;
+  border: 1px solid rgb(173 255 214 / 24%);
+  border-radius: 4px;
+  color: #adffd6;
+  text-decoration: none;
+}
+
+.mobile-debug-panel__stages a[aria-current='step'] {
+  border-color: #fff1a6;
+  background: rgb(255 241 166 / 14%);
+  color: #fff1a6;
+}
+
+.mobile-debug-panel__output {
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 768px),
   (max-width: 950px) and (max-height: 500px),
   (hover: none) and (pointer: coarse) {
