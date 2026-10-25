@@ -165,7 +165,7 @@ const LANDMARK_EXPERIENCES = {
     mobileFocus: { distanceFactor: 2.72, minDistance: 31, maxDistance: 70, heightRatio: 0.72 },
     projects: [
       { title: 'Mundos Imaginados', category: 'Filme · Vídeo IA', href: '#projeto-mundos-imaginados', thumbnail: 'project-card__thumbnail--worlds' },
-      { title: 'Memórias Sintéticas', category: 'Experimento visual', href: '#projeto-memorias-sinteticas', thumbnail: 'project-card__thumbnail--memory' },
+      { title: 'Memórias Reais', category: 'Experimento visual', href: '#projeto-memorias-sinteticas', thumbnail: 'project-card__thumbnail--memory' },
       { title: 'Oráculo', category: 'Motion · Inteligência artificial', href: '#projeto-oraculo', thumbnail: 'project-card__thumbnail--oracle' },
     ],
   },
@@ -213,7 +213,7 @@ const AI_VIDEO_CATEGORIES = {
     ],
   },
   memoriasSinteticas: {
-    label: 'Memórias Sintéticas',
+    label: 'Memórias Reais',
     videos: [
       { id: 'em-alta-carvalhaum', title: 'Carvalho Hosken SA imóveis', file: 'emAltaCarvalhaum.web.mp4', poster: 'emAltaCarvalhaum.webp', duration: '00:26' },
     ],
