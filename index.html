@@ -103,7 +103,10 @@
         aria-labelledby="landmark-panel-title"
         aria-hidden="true"
       >
-        <button class="project-panel__close" type="button" aria-label="Fechar e voltar para a ilha">×</button>
+        <div class="project-panel__actions">
+          <button class="project-panel__back" type="button"><span aria-hidden="true">←</span> Voltar ao mapa</button>
+          <button class="project-panel__close" type="button" aria-label="Fechar e voltar para a ilha">×</button>
+        </div>
         <header class="project-panel__header">
           <img
             class="project-panel__icon"
@@ -114,30 +117,36 @@
           />
           <div>
             <h2 id="landmark-panel-title">Casa do Tecnomago</h2>
-            <p class="project-panel__subtitle">Vídeos IA</p>
+            <p class="project-panel__subtitle">Vídeos de IA</p>
           </div>
         </header>
-        <p class="project-panel__description">
-          Projetos de audiovisual, inteligência artificial e experimentação visual.
-        </p>
-        <div class="project-panel__projects" aria-label="Projetos em destaque">
-          <a class="project-card" href="#projeto-mundos-imaginados">
-            <span class="project-card__thumbnail project-card__thumbnail--worlds" aria-hidden="true"></span>
-            <span class="project-card__copy"><strong>Mundos Imaginados</strong><small>Filme · Vídeo IA</small></span>
-            <span class="project-card__cta">Ver projeto <span aria-hidden="true">→</span></span>
-          </a>
-          <a class="project-card" href="#projeto-memorias-sinteticas">
-            <span class="project-card__thumbnail project-card__thumbnail--memory" aria-hidden="true"></span>
-            <span class="project-card__copy"><strong>Memórias Sintéticas</strong><small>Experimento visual</small></span>
-            <span class="project-card__cta">Ver projeto <span aria-hidden="true">→</span></span>
-          </a>
-          <a class="project-card" href="#projeto-oraculo">
-            <span class="project-card__thumbnail project-card__thumbnail--oracle" aria-hidden="true"></span>
-            <span class="project-card__copy"><strong>Oráculo</strong><small>Motion · Inteligência artificial</small></span>
-            <span class="project-card__cta">Ver projeto <span aria-hidden="true">→</span></span>
-          </a>
+        <div class="project-panel__generic">
+          <p class="project-panel__description">
+            Projetos de audiovisual, inteligência artificial e experimentação visual.
+          </p>
+          <div class="project-panel__projects" aria-label="Projetos em destaque">
+            <a class="project-card" href="#projeto-mundos-imaginados">
+              <span class="project-card__thumbnail project-card__thumbnail--worlds" aria-hidden="true"></span>
+              <span class="project-card__copy"><strong>Mundos Imaginados</strong><small>Filme · Vídeo IA</small></span>
+              <span class="project-card__cta">Ver projeto <span aria-hidden="true">→</span></span>
+            </a>
+            <a class="project-card" href="#projeto-memorias-sinteticas">
+              <span class="project-card__thumbnail project-card__thumbnail--memory" aria-hidden="true"></span>
+              <span class="project-card__copy"><strong>Memórias Sintéticas</strong><small>Experimento visual</small></span>
+              <span class="project-card__cta">Ver projeto <span aria-hidden="true">→</span></span>
+            </a>
+            <a class="project-card" href="#projeto-oraculo">
+              <span class="project-card__thumbnail project-card__thumbnail--oracle" aria-hidden="true"></span>
+              <span class="project-card__copy"><strong>Oráculo</strong><small>Motion · Inteligência artificial</small></span>
+              <span class="project-card__cta">Ver projeto <span aria-hidden="true">→</span></span>
+            </a>
+          </div>
+          <a class="project-panel__explore" href="#videos-de-ia">Explorar projetos <span aria-hidden="true">→</span></a>
         </div>
-        <a class="project-panel__explore" href="#videos-de-ia">Explorar projetos <span aria-hidden="true">→</span></a>
+        <section class="ai-video-library" aria-label="Vídeos de IA" hidden>
+          <nav class="ai-video-tabs" aria-label="Categorias de vídeos"></nav>
+          <div class="ai-video-library__content"></div>
+        </section>
       </aside>
       <div class="scene-controls">
         <span>Blockout 3D · mova o mouse para observar a profundidade</span>

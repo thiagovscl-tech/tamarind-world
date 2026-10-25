@@ -3,3 +3,5 @@ dist
 .env
 .env.local
 .DS_Store
+public/projects/videos-ai/*.mp4
+!public/projects/videos-ai/*.web.mp4

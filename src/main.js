@@ -140,11 +140,16 @@ function getResponsiveCameraSpec(aspect, desktopFov = 44) {
 const landmarkNavigation = document.querySelector('.landmark-navigation');
 const projectPanel = document.querySelector('#landmark-project-panel');
 const projectPanelClose = projectPanel?.querySelector('.project-panel__close');
+const projectPanelBack = projectPanel?.querySelector('.project-panel__back');
 const projectPanelIcon = projectPanel?.querySelector('.project-panel__icon');
 const projectPanelTitle = projectPanel?.querySelector('#landmark-panel-title');
 const projectPanelSubtitle = projectPanel?.querySelector('.project-panel__subtitle');
 const projectPanelDescription = projectPanel?.querySelector('.project-panel__description');
 const projectPanelExplore = projectPanel?.querySelector('.project-panel__explore');
+const projectPanelGeneric = projectPanel?.querySelector('.project-panel__generic');
+const aiVideoLibrary = projectPanel?.querySelector('.ai-video-library');
+const aiVideoTabs = projectPanel?.querySelector('.ai-video-tabs');
+const aiVideoContent = projectPanel?.querySelector('.ai-video-library__content');
 const projectCards = [...(projectPanel?.querySelectorAll('.project-card') ?? [])];
 const landmarkLinks = Object.fromEntries(
   [...document.querySelectorAll('[data-landmark]')].map((link) => [link.dataset.landmark, link]),
@@ -152,7 +157,7 @@ const landmarkLinks = Object.fromEntries(
 const LANDMARK_EXPERIENCES = {
   tecnomago: {
     title: 'Casa do Tecnomago',
-    subtitle: 'Vídeos IA',
+    subtitle: 'Vídeos de IA',
     description: 'Projetos de audiovisual, inteligência artificial e experimentação visual.',
     icon: '/artwork/ui/icone-videos-ia.png',
     href: '#videos-de-ia',
@@ -193,6 +198,154 @@ const LANDMARK_EXPERIENCES = {
     ],
   },
 };
+
+const AI_VIDEO_CATEGORIES = {
+  mundosImaginados: {
+    label: 'Mundos Imaginados',
+    videos: [
+      { id: 'bikefilme', title: 'BIKE FILME', file: 'BIKEFILME.web.mp4', poster: 'BIKEFILME.webp', duration: '00:30' },
+      { id: 'em-alta-carvalhaum', title: 'Em Alta Carvalhaum', file: 'emAltaCarvalhaum.web.mp4', poster: 'emAltaCarvalhaum.webp', duration: '00:26' },
+      { id: 'new-balance-boneco', title: 'NEW BALANCE BONECO', file: 'NEWBALANCEBONECO.web.mp4', poster: 'NEWBALANCEBONECO.webp', duration: '00:15' },
+      { id: 'ny', title: 'NY', file: 'NY.web.mp4', poster: 'NY.webp', duration: '00:12' },
+      { id: 'picole-tamarind', title: 'Picolé Tamarind', file: 'picole_tamarind.web.mp4', poster: 'picole_tamarind.webp', duration: '00:12' },
+      { id: 'primeiro', title: 'Primeiro', file: 'primeiro.web.mp4', poster: 'primeiro.webp', duration: '00:07' },
+      { id: 'reels-thiago-vascon', title: 'Reels Thiago Vascon', file: 'reelsthiagovascon.web.mp4', poster: 'reelsthiagovascon.webp', duration: '00:17' },
+      { id: 'sitio-do-pi', title: 'Sítio do Pi', file: 'sitiodopi.web.mp4', poster: 'sitiodopi.webp', duration: '00:20' },
+    ],
+  },
+  memoriasSinteticas: { label: 'Memórias Sintéticas', videos: [] },
+  oraculo: { label: 'Oráculo', videos: [] },
+};
+
+let activeAiCategory = 'mundosImaginados';
+let activeAiVideoElement = null;
+let aiVideoLibraryReady = false;
+
+function getAiVideoUrl(video) {
+  return `/projects/videos-ai/${encodeURIComponent(video.file)}`;
+}
+
+function getAiPosterUrl(video) {
+  return `/projects/videos-ai/posters/${encodeURIComponent(video.poster)}`;
+}
+
+function releaseAiVideo() {
+  if (!activeAiVideoElement) return;
+  activeAiVideoElement.pause();
+  activeAiVideoElement.removeAttribute('src');
+  activeAiVideoElement.load();
+  activeAiVideoElement = null;
+}
+
+function createAiPoster(video, className, onPlay) {
+  const button = document.createElement('button');
+  button.className = className;
+  button.type = 'button';
+  button.setAttribute('aria-label', `Reproduzir ${video.title}`);
+  const image = document.createElement('img');
+  image.src = getAiPosterUrl(video);
+  image.alt = '';
+  image.width = 640;
+  image.height = 360;
+  image.loading = 'lazy';
+  image.decoding = 'async';
+  const play = document.createElement('span');
+  play.className = 'ai-video-play';
+  play.setAttribute('aria-hidden', 'true');
+  play.textContent = '▶';
+  const duration = document.createElement('span');
+  duration.className = 'ai-video-duration';
+  duration.textContent = video.duration;
+  button.append(image, play, duration);
+  button.addEventListener('click', onPlay);
+  return button;
+}
+
+function renderAiVideoCategory(categoryKey = activeAiCategory, selectedId = null, autoplay = false) {
+  if (!aiVideoContent) return;
+  releaseAiVideo();
+  activeAiCategory = categoryKey;
+  aiVideoTabs?.querySelectorAll('button').forEach((button) => {
+    const active = button.dataset.category === categoryKey;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  aiVideoContent.replaceChildren();
+  const category = AI_VIDEO_CATEGORIES[categoryKey];
+  if (!category?.videos.length) {
+    const empty = document.createElement('div');
+    empty.className = 'ai-video-empty';
+    empty.innerHTML = `<strong>${category?.label || 'Categoria'}</strong><span>Em breve</span>`;
+    aiVideoContent.appendChild(empty);
+    return;
+  }
+
+  const selected = category.videos.find((video) => video.id === selectedId) || category.videos[0];
+  const featured = document.createElement('article');
+  featured.className = 'ai-video-featured';
+  const media = document.createElement('div');
+  media.className = 'ai-video-featured__media';
+  const playSelected = () => renderAiVideoCategory(categoryKey, selected.id, true);
+  if (autoplay) {
+    const videoElement = document.createElement('video');
+    videoElement.className = 'ai-video-player';
+    videoElement.controls = true;
+    videoElement.playsInline = true;
+    videoElement.preload = 'none';
+    videoElement.poster = getAiPosterUrl(selected);
+    videoElement.src = getAiVideoUrl(selected);
+    media.appendChild(videoElement);
+    activeAiVideoElement = videoElement;
+    videoElement.play().catch(() => {});
+  } else {
+    media.appendChild(createAiPoster(selected, 'ai-video-featured__poster', playSelected));
+  }
+  const details = document.createElement('div');
+  details.className = 'ai-video-featured__details';
+  details.innerHTML = `
+    <p class="ai-video-eyebrow">Mundos Imaginados</p>
+    <h3>${selected.title}</h3>
+    <p>Vídeo da coleção Mundos Imaginados.</p>
+    <div class="ai-video-tags"><span>Vídeo IA</span><span>Mundos Imaginados</span></div>
+    <small>${selected.duration} <i></i> MP4</small>
+  `;
+  featured.append(media, details);
+
+  const heading = document.createElement('div');
+  heading.className = 'ai-video-grid__heading';
+  heading.innerHTML = `<h3>Mais vídeos de ${category.label}</h3><span>${category.videos.length} vídeos</span>`;
+  const grid = document.createElement('div');
+  grid.className = 'ai-video-grid';
+  category.videos.filter((video) => video.id !== selected.id).forEach((video) => {
+    const card = document.createElement('article');
+    card.className = 'ai-video-card';
+    card.appendChild(createAiPoster(video, 'ai-video-card__poster', () => {
+      renderAiVideoCategory(categoryKey, video.id, true);
+      aiVideoContent.scrollTo({ top: 0, behavior: 'smooth' });
+    }));
+    const copy = document.createElement('div');
+    copy.className = 'ai-video-card__copy';
+    copy.innerHTML = `<div><strong>${video.title}</strong><small>Vídeo IA</small></div><span aria-hidden="true">→</span>`;
+    card.appendChild(copy);
+    grid.appendChild(card);
+  });
+  aiVideoContent.append(featured, heading, grid);
+}
+
+function initializeAiVideoLibrary() {
+  if (aiVideoLibraryReady || !aiVideoTabs) return;
+  aiVideoLibraryReady = true;
+  Object.entries(AI_VIDEO_CATEGORIES).forEach(([key, category]) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.category = key;
+    button.setAttribute('role', 'tab');
+    button.textContent = category.label;
+    button.addEventListener('click', () => renderAiVideoCategory(key));
+    aiVideoTabs.appendChild(button);
+  });
+  renderAiVideoCategory();
+}
 const landmarkWorldPosition = new THREE.Vector3();
 const landmarkScreenPosition = new THREE.Vector3();
 const landmarkCameraDirection = new THREE.Vector3();
@@ -531,6 +684,7 @@ Object.values(landmarkLinks).forEach((link) => {
 projectPanel?.addEventListener('pointerdown', (event) => event.stopPropagation());
 projectPanel?.addEventListener('pointerup', (event) => event.stopPropagation());
 projectPanelClose?.addEventListener('click', () => closeLandmarkExperience?.());
+projectPanelBack?.addEventListener('click', () => closeLandmarkExperience?.());
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') closeLandmarkExperience?.();
 });
@@ -720,6 +874,16 @@ async function initializeScene() {
       const config = LANDMARK_EXPERIENCES[landmarkKey];
       if (!config || !projectPanel) return;
       projectPanel.dataset.section = landmarkKey;
+      const isVideoLibrary = landmarkKey === 'tecnomago';
+      projectPanel.classList.toggle('project-panel--video-library', isVideoLibrary);
+      if (projectPanelGeneric) projectPanelGeneric.hidden = isVideoLibrary;
+      if (aiVideoLibrary) aiVideoLibrary.hidden = !isVideoLibrary;
+      if (isVideoLibrary) {
+        initializeAiVideoLibrary();
+        renderAiVideoCategory('mundosImaginados');
+      } else {
+        releaseAiVideo();
+      }
       if (projectPanelIcon) projectPanelIcon.src = config.icon;
       if (projectPanelTitle) projectPanelTitle.textContent = config.title;
       if (projectPanelSubtitle) projectPanelSubtitle.textContent = config.subtitle;
@@ -739,6 +903,7 @@ async function initializeScene() {
     };
 
     const setPanelOpen = (open) => {
+      if (!open) releaseAiVideo();
       projectPanel?.classList.toggle('is-open', open);
       projectPanel?.setAttribute('aria-hidden', open ? 'false' : 'true');
       if (open) projectPanelClose?.focus({ preventScroll: true });
