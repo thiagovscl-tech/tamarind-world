@@ -204,7 +204,6 @@ const AI_VIDEO_CATEGORIES = {
     label: 'Mundos Imaginados',
     videos: [
       { id: 'bikefilme', title: 'BIKE FILME', file: 'BIKEFILME.web.mp4', poster: 'BIKEFILME.webp', duration: '00:30' },
-      { id: 'em-alta-carvalhaum', title: 'Em Alta Carvalhaum', file: 'emAltaCarvalhaum.web.mp4', poster: 'emAltaCarvalhaum.webp', duration: '00:26' },
       { id: 'new-balance-boneco', title: 'NEW BALANCE BONECO', file: 'NEWBALANCEBONECO.web.mp4', poster: 'NEWBALANCEBONECO.webp', duration: '00:15' },
       { id: 'ny', title: 'NY', file: 'NY.web.mp4', poster: 'NY.webp', duration: '00:12' },
       { id: 'picole-tamarind', title: 'Picolé Tamarind', file: 'picole_tamarind.web.mp4', poster: 'picole_tamarind.webp', duration: '00:12' },
@@ -213,7 +212,12 @@ const AI_VIDEO_CATEGORIES = {
       { id: 'sitio-do-pi', title: 'Sítio do Pi', file: 'sitiodopi.web.mp4', poster: 'sitiodopi.webp', duration: '00:20' },
     ],
   },
-  memoriasSinteticas: { label: 'Memórias Sintéticas', videos: [] },
+  memoriasSinteticas: {
+    label: 'Memórias Sintéticas',
+    videos: [
+      { id: 'em-alta-carvalhaum', title: 'Carvalho Hosken SA imóveis', file: 'emAltaCarvalhaum.web.mp4', poster: 'emAltaCarvalhaum.webp', duration: '00:26' },
+    ],
+  },
   oraculo: { label: 'Oráculo', videos: [] },
 };
 
@@ -303,17 +307,18 @@ function renderAiVideoCategory(categoryKey = activeAiCategory, selectedId = null
   const details = document.createElement('div');
   details.className = 'ai-video-featured__details';
   details.innerHTML = `
-    <p class="ai-video-eyebrow">Mundos Imaginados</p>
+    <p class="ai-video-eyebrow">${category.label}</p>
     <h3>${selected.title}</h3>
-    <p>Vídeo da coleção Mundos Imaginados.</p>
-    <div class="ai-video-tags"><span>Vídeo IA</span><span>Mundos Imaginados</span></div>
+    <p>Vídeo da coleção ${category.label}.</p>
+    <div class="ai-video-tags"><span>Vídeo IA</span><span>${category.label}</span></div>
     <small>${selected.duration} <i></i> MP4</small>
   `;
   featured.append(media, details);
 
   const heading = document.createElement('div');
   heading.className = 'ai-video-grid__heading';
-  heading.innerHTML = `<h3>Mais vídeos de ${category.label}</h3><span>${category.videos.length} vídeos</span>`;
+  const videoCountLabel = `${category.videos.length} ${category.videos.length === 1 ? 'vídeo' : 'vídeos'}`;
+  heading.innerHTML = `<h3>Mais vídeos de ${category.label}</h3><span>${videoCountLabel}</span>`;
   const grid = document.createElement('div');
   grid.className = 'ai-video-grid';
   category.videos.filter((video) => video.id !== selected.id).forEach((video) => {
