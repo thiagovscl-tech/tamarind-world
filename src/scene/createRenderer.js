@@ -1,7 +1,12 @@
 import * as THREE from 'three';
 
 export function createRenderer(container) {
-  const debugMobile = new URLSearchParams(window.location.search).get('debugMobile') === '1';
+  const debugParams = new URLSearchParams(window.location.search);
+  const debugMobile = debugParams.get('debugMobile') === '1';
+  const debugLightStage = Math.min(6, Math.max(
+    0,
+    Number.parseInt(debugParams.get('debugLightStage') || '6', 10) || 0,
+  ));
   const renderer = new THREE.WebGLRenderer({
     antialias: !debugMobile,
     alpha: false,
@@ -18,7 +23,7 @@ export function createRenderer(container) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
-  renderer.shadowMap.enabled = !debugMobile;
+  renderer.shadowMap.enabled = !debugMobile || debugLightStage >= 6;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.setSize(container.clientWidth, container.clientHeight);
   container.appendChild(renderer.domElement);

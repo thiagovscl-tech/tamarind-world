@@ -4,6 +4,9 @@ export const mobileDebugEnabled = params.get('debugMobile') === '1';
 export const mobileDebugStage = mobileDebugEnabled
   ? Math.min(8, Math.max(0, Number.parseInt(params.get('debugStage') || '0', 10) || 0))
   : 8;
+export const mobileDebugLightStage = mobileDebugEnabled
+  ? Math.min(6, Math.max(0, Number.parseInt(params.get('debugLightStage') || '6', 10) || 0))
+  : 6;
 
 const STAGES = [
   'núcleo',
@@ -16,6 +19,7 @@ const STAGES = [
   '+ campfire',
   '+ brejo',
 ];
+const LIGHT_STAGES = ['dia', 'céu', 'ambiente', 'direcional', 'decorativas', 'emissivos', 'sombras'];
 
 const state = {
   phase: 'bootstrap',
@@ -24,6 +28,9 @@ const state = {
   assetError: '—',
   webgl: 'inicializando',
   errors: [],
+  nightBefore: '—',
+  nightAfter: '—',
+  temple: '—',
 };
 
 let panel = null;
@@ -74,9 +81,23 @@ function createPanel() {
     stages.appendChild(link);
   });
 
+  const lightStages = document.createElement('nav');
+  lightStages.className = 'mobile-debug-panel__stages mobile-debug-panel__light-stages';
+  lightStages.setAttribute('aria-label', 'Etapas de iluminação noturna');
+  LIGHT_STAGES.forEach((label, index) => {
+    const link = document.createElement('a');
+    const nextParams = new URLSearchParams(window.location.search);
+    nextParams.set('debugMobile', '1');
+    nextParams.set('debugLightStage', String(index));
+    link.href = `${window.location.pathname}?${nextParams.toString()}`;
+    link.textContent = `L${index}: ${label}`;
+    if (index === mobileDebugLightStage) link.setAttribute('aria-current', 'step');
+    lightStages.appendChild(link);
+  });
+
   output = document.createElement('pre');
   output.className = 'mobile-debug-panel__output';
-  panel.append(header, stages, output);
+  panel.append(header, stages, lightStages, output);
   document.body.appendChild(panel);
   refreshPanel();
 }
@@ -98,6 +119,13 @@ function attachGlobalListeners() {
       state.assetError = `${label || 'asset'} · ${url || ''} · ${error || 'erro'}`;
       recordError('GLB', state.assetError);
     }
+    refreshPanel();
+  });
+  window.addEventListener('tamarind:night-debug', (event) => {
+    const { moment, summary, temple } = event.detail || {};
+    if (moment === 'before') state.nightBefore = summary || '—';
+    if (moment === 'after') state.nightAfter = summary || '—';
+    if (temple) state.temple = temple;
     refreshPanel();
   });
 }
@@ -135,6 +163,10 @@ function refreshPanel() {
     `START     ${state.started}`,
     `SUCCESS   ${state.completed}`,
     `ASSET ERR ${state.assetError}`,
+    `LIGHT     ${mobileDebugLightStage}/6 · ${LIGHT_STAGES[mobileDebugLightStage]}`,
+    `NIGHT PRE ${state.nightBefore}`,
+    `NIGHT POST ${state.nightAfter}`,
+    `TEMPLE    ${state.temple}`,
     state.errors.length ? `ERRORS\n${state.errors.join('\n---\n')}` : 'ERRORS    nenhum',
   ].join('\n');
 }

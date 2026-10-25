@@ -7,6 +7,7 @@ import { updateBearProcedural } from './scene3d/createBearCharacter3d.js';
 import {
   attachMobileDebug,
   mobileDebugEnabled,
+  mobileDebugLightStage,
   mobileDebugStage,
   setMobileDebugPhase,
 } from './mobileDebug.js';
@@ -312,40 +313,133 @@ function createDayNightController(scene, activeRenderer, landmarks, activeWater)
   refresh();
 
   const colorScratch = new THREE.Color();
+  let toggleStartedAt = 0;
+  let toggleTarget = null;
+  const inspectTempleMaterials = () => {
+    const temple = scene.getObjectByName('OrientalPagoda');
+    if (!temple) return 'ainda não carregado';
+    const materials = new Set();
+    temple.traverse((object) => {
+      if (!object.isMesh) return;
+      const meshMaterials = Array.isArray(object.material) ? object.material : [object.material];
+      meshMaterials.filter(Boolean).forEach((material) => materials.add(material));
+    });
+    const list = [...materials];
+    const standard = list.filter((material) => material.isMeshStandardMaterial || material.isMeshPhysicalMaterial);
+    const litEmissive = standard.filter((material) => (
+      material.emissiveIntensity * Math.max(material.emissive.r, material.emissive.g, material.emissive.b) > 0.01
+    ));
+    const average = (key) => standard.length
+      ? standard.reduce((sum, material) => sum + (Number(material[key]) || 0), 0) / standard.length
+      : 0;
+    return [
+      `${list.length} mat`,
+      `std ${standard.length}`,
+      `rough ${average('roughness').toFixed(2)}`,
+      `metal ${average('metalness').toFixed(2)}`,
+      `map ${list.filter((material) => material.map).length}`,
+      `normal ${list.filter((material) => material.normalMap).length}`,
+      `emissive ${litEmissive.length}`,
+    ].join(' · ');
+  };
+  const captureLightingSnapshot = (elapsedMs = null) => {
+    const lights = [];
+    const materials = new Set();
+    let meshCount = 0;
+    let castShadowMeshes = 0;
+    let receiveShadowMeshes = 0;
+    scene.traverse((object) => {
+      if (object.isLight) lights.push(object);
+      if (!object.isMesh) return;
+      meshCount += 1;
+      if (object.castShadow) castShadowMeshes += 1;
+      if (object.receiveShadow) receiveShadowMeshes += 1;
+      const meshMaterials = Array.isArray(object.material) ? object.material : [object.material];
+      meshMaterials.filter(Boolean).forEach((material) => materials.add(material));
+    });
+    const shadowLights = lights.filter((light) => light.castShadow);
+    const shadowSizes = shadowLights.map((light) => (
+      `${light.name || light.type}:${light.shadow?.mapSize?.width || 0}`
+    )).join(',') || 'nenhuma';
+    const jsHeap = performance.memory?.usedJSHeapSize
+      ? `${Math.round(performance.memory.usedJSHeapSize / 1048576)}MB`
+      : 'n/a';
+    return {
+      summary: [
+        `${lights.length}L/${shadowLights.length}S`,
+        `${activeRenderer.info.render.calls} calls`,
+        `${activeRenderer.info.render.triangles} tris`,
+        `${activeRenderer.info.memory.geometries}g/${activeRenderer.info.memory.textures}t`,
+        `${materials.size} mat`,
+        `${activeRenderer.info.programs?.length || 0} shaders`,
+        `shadow ${activeRenderer.shadowMap.enabled ? 'on' : 'off'} ${shadowSizes}`,
+        `mesh ${meshCount}/${castShadowMeshes}c/${receiveShadowMeshes}r`,
+        `heap ${jsHeap}`,
+        elapsedMs === null ? '' : `${Math.round(elapsedMs)}ms`,
+      ].filter(Boolean).join(' · '),
+      temple: inspectTempleMaterials(),
+    };
+  };
+  const emitLightingSnapshot = (moment, elapsedMs = null) => {
+    if (!mobileDebugEnabled) return;
+    window.dispatchEvent(new CustomEvent('tamarind:night-debug', {
+      detail: { moment, ...captureLightingSnapshot(elapsedMs) },
+    }));
+  };
   return {
     refresh,
+    beginToggle(target) {
+      if (!mobileDebugEnabled) return;
+      toggleStartedAt = performance.now();
+      toggleTarget = target;
+      console.time('night-mode-toggle');
+      emitLightingSnapshot('before');
+    },
+    completeToggleIfReady(value, target) {
+      if (!mobileDebugEnabled || toggleTarget !== target || Math.abs(value - target) > 0.002) return;
+      const elapsedMs = performance.now() - toggleStartedAt;
+      toggleTarget = null;
+      console.timeEnd('night-mode-toggle');
+      emitLightingSnapshot('after', elapsedMs);
+    },
     update(value) {
-      scene.background.copy(colorScratch.copy(day.background).lerp(night.background, value));
-      scene.fog.color.copy(colorScratch.copy(day.fogColor).lerp(night.fogColor, value));
-      scene.fog.near = THREE.MathUtils.lerp(day.fogNear, night.fogNear, value);
-      scene.fog.far = THREE.MathUtils.lerp(day.fogFar, night.fogFar, value);
-      activeRenderer.toneMappingExposure = THREE.MathUtils.lerp(day.exposure, night.exposure, value);
+      const lightStage = mobileDebugEnabled ? mobileDebugLightStage : 6;
+      const backgroundMix = lightStage >= 1 ? value : 0;
+      const ambientMix = lightStage >= 2 ? value : 0;
+      const directionalMix = lightStage >= 3 ? value : 0;
+      const decorativeMix = lightStage >= 4 ? value : 0;
+      const emissiveMix = lightStage >= 5 ? value : 0;
+      scene.background.copy(colorScratch.copy(day.background).lerp(night.background, backgroundMix));
+      scene.fog.color.copy(colorScratch.copy(day.fogColor).lerp(night.fogColor, backgroundMix));
+      scene.fog.near = THREE.MathUtils.lerp(day.fogNear, night.fogNear, backgroundMix);
+      scene.fog.far = THREE.MathUtils.lerp(day.fogFar, night.fogFar, backgroundMix);
+      activeRenderer.toneMappingExposure = THREE.MathUtils.lerp(day.exposure, night.exposure, directionalMix);
 
       if (hemisphere) {
-        hemisphere.color.copy(colorScratch.copy(day.hemisphereSky).lerp(night.hemisphereSky, value));
-        hemisphere.groundColor.copy(colorScratch.copy(day.hemisphereGround).lerp(night.hemisphereGround, value));
-        hemisphere.intensity = THREE.MathUtils.lerp(day.hemisphereIntensity, night.hemisphereIntensity, value);
+        hemisphere.color.copy(colorScratch.copy(day.hemisphereSky).lerp(night.hemisphereSky, ambientMix));
+        hemisphere.groundColor.copy(colorScratch.copy(day.hemisphereGround).lerp(night.hemisphereGround, ambientMix));
+        hemisphere.intensity = THREE.MathUtils.lerp(day.hemisphereIntensity, night.hemisphereIntensity, ambientMix);
       }
       if (keyLight) {
-        keyLight.color.copy(colorScratch.copy(day.keyColor).lerp(night.keyColor, value));
-        keyLight.intensity = THREE.MathUtils.lerp(day.keyIntensity, night.keyIntensity, value);
+        keyLight.color.copy(colorScratch.copy(day.keyColor).lerp(night.keyColor, directionalMix));
+        keyLight.intensity = THREE.MathUtils.lerp(day.keyIntensity, night.keyIntensity, directionalMix);
       }
       if (fillLight) {
-        fillLight.color.copy(colorScratch.copy(day.fillColor).lerp(night.fillColor, value));
-        fillLight.intensity = THREE.MathUtils.lerp(day.fillIntensity, night.fillIntensity, value);
+        fillLight.color.copy(colorScratch.copy(day.fillColor).lerp(night.fillColor, directionalMix));
+        fillLight.intensity = THREE.MathUtils.lerp(day.fillIntensity, night.fillIntensity, directionalMix);
       }
 
-      activeWater.material.color.copy(colorScratch.copy(day.waterColor).lerp(night.waterColor, value));
-      activeWater.material.roughness = THREE.MathUtils.lerp(day.waterRoughness, night.waterRoughness, value);
-      activeWater.material.clearcoat = THREE.MathUtils.lerp(day.waterClearcoat, night.waterClearcoat, value);
-      activeWater.material.opacity = THREE.MathUtils.lerp(day.waterOpacity, night.waterOpacity, value);
+      activeWater.material.color.copy(colorScratch.copy(day.waterColor).lerp(night.waterColor, directionalMix));
+      activeWater.material.roughness = THREE.MathUtils.lerp(day.waterRoughness, night.waterRoughness, directionalMix);
+      activeWater.material.clearcoat = THREE.MathUtils.lerp(day.waterClearcoat, night.waterClearcoat, directionalMix);
+      activeWater.material.opacity = THREE.MathUtils.lerp(day.waterOpacity, night.waterOpacity, directionalMix);
 
       for (const entry of emissiveMaterials) {
-        entry.material.emissive.copy(colorScratch.copy(entry.dayColor).lerp(entry.nightColor, value));
-        entry.material.emissiveIntensity = THREE.MathUtils.lerp(entry.dayIntensity, entry.nightIntensity, value);
+        entry.material.emissive.copy(colorScratch.copy(entry.dayColor).lerp(entry.nightColor, emissiveMix));
+        entry.material.emissiveIntensity = THREE.MathUtils.lerp(entry.dayIntensity, entry.nightIntensity, emissiveMix);
       }
       localLights.forEach((light) => {
-        light.intensity = THREE.MathUtils.lerp(0, light.userData.nightIntensity, value);
+        light.intensity = THREE.MathUtils.lerp(0, light.userData.nightIntensity, decorativeMix);
       });
     },
   };
@@ -354,6 +448,7 @@ function createDayNightController(scene, activeRenderer, landmarks, activeWater)
 dayNightToggle?.addEventListener('click', () => {
   const nightEnabled = dayNightToggle.getAttribute('aria-pressed') !== 'true';
   nightTarget = nightEnabled ? 1 : 0;
+  dayNightController?.beginToggle(nightTarget);
   dayNightToggle.setAttribute('aria-pressed', nightEnabled ? 'true' : 'false');
   dayNightToggle.setAttribute('aria-label', nightEnabled ? 'Ativar modo dia' : 'Ativar modo noite');
   container.classList.toggle('is-night-mode', nightEnabled);
@@ -733,6 +828,7 @@ async function initializeScene() {
       const smooth = 1 - Math.exp(-delta * 3.2);
       nightMix = THREE.MathUtils.damp(nightMix, nightTarget, 2.1, delta);
       dayNightController?.update(nightMix);
+      dayNightController?.completeToggleIfReady(nightMix, nightTarget);
       easedPointer.lerp(pointer, smooth);
       updateBearProcedural(bear, easedPointer, elapsed, delta);
       updateGoatWalk?.(elapsed, delta);

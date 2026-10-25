@@ -447,7 +447,7 @@ body.is-night-mode { background: #081526; }
 .project-panel.is-open {
   visibility: visible;
   opacity: 1;
-  pointer-events: auto;
+  pointer-events: none;
   transform: translateX(0);
 }
 
@@ -669,7 +669,7 @@ body.is-night-mode { background: #081526; }
 
 .mobile-debug-panel {
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 6px);
+  top: calc(env(safe-area-inset-top, 0px) + 72px);
   left: calc(env(safe-area-inset-left, 0px) + 6px);
   z-index: 1000;
   width: min(370px, calc(100vw - 12px));
@@ -707,6 +707,7 @@ body.is-night-mode { background: #081526; }
   border-radius: 4px;
   color: #adffd6;
   text-decoration: none;
+  pointer-events: auto;
 }
 
 .mobile-debug-panel__stages a[aria-current='step'] {
