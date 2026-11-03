@@ -17,6 +17,8 @@
     "assets:audit": "node scripts/audit-glbs.mjs",
     "assets:optimize": "node scripts/optimize-web-glbs.mjs",
     "assets:optimize-runtime": "node scripts/optimize-active-runtime-glbs.mjs",
+    "assets:optimize-decor": "node scripts/optimize-secondary-runtime-glbs.mjs",
+    "assets:optimize-ui": "node scripts/optimize-ui-assets.mjs",
     "assets:report": "node scripts/generate-optimization-report.mjs",
     "coast:generate": "node scripts/generate-coast-data.mjs"
   },

@@ -4,13 +4,20 @@ import { createCamera3d, resizeCamera3d } from './scene3d/createCamera3d.js';
 import { createRenderer } from './scene/createRenderer.js';
 import { createWorld3d } from './scene3d/createWorld3d.js';
 import { updateBearProcedural } from './scene3d/createBearCharacter3d.js';
-import {
-  attachMobileDebug,
-  mobileDebugEnabled,
-  mobileDebugLightStage,
-  mobileDebugStage,
-  setMobileDebugPhase,
-} from './mobileDebug.js';
+
+const debugParams = new URLSearchParams(window.location.search);
+const mobileDebugEnabled = debugParams.get('debugMobile') === '1';
+let mobileDebugStage = 8;
+let mobileDebugLightStage = 6;
+let attachMobileDebug = () => {};
+let setMobileDebugPhase = () => {};
+if (mobileDebugEnabled) {
+  const mobileDebug = await import('./mobileDebug.js');
+  mobileDebugStage = mobileDebug.mobileDebugStage;
+  mobileDebugLightStage = mobileDebug.mobileDebugLightStage;
+  attachMobileDebug = mobileDebug.attachMobileDebug;
+  setMobileDebugPhase = mobileDebug.setMobileDebugPhase;
+}
 
 console.time('[Tamarind] tempo até first render');
 console.time('[Tamarind] tempo até mundo completo');
@@ -23,6 +30,12 @@ const tamarindMetrics = {
 window.__tamarindMetrics = tamarindMetrics;
 
 const navigationEntry = performance.getEntriesByType('navigation')[0];
+if (navigationEntry) {
+  tamarindMetrics.navigationTtfbMs = Math.max(
+    0,
+    navigationEntry.responseStart - navigationEntry.requestStart,
+  );
+}
 if (navigationEntry?.domContentLoadedEventEnd) {
   tamarindMetrics.domContentLoadedMs = navigationEntry.domContentLoadedEventEnd;
 } else {
@@ -159,7 +172,7 @@ const LANDMARK_EXPERIENCES = {
     title: 'Casa do Tecnomago',
     subtitle: 'Vídeos de IA',
     description: 'Projetos de audiovisual, inteligência artificial e experimentação visual.',
-    icon: '/artwork/ui/icone-videos-ia.png',
+    icon: '/artwork/ui/icone-videos-ia.runtime.webp?v=f7cfe5d431f5',
     href: '#videos-de-ia',
     focus: { distanceFactor: 2.18, minDistance: 24, maxDistance: 58, heightRatio: 0.68, lateralShift: 0.2 },
     mobileFocus: { distanceFactor: 2.72, minDistance: 31, maxDistance: 70, heightRatio: 0.72 },
@@ -173,7 +186,7 @@ const LANDMARK_EXPERIENCES = {
     title: 'APP / WEB',
     subtitle: 'Interfaces e experiências digitais',
     description: 'Projetos de interfaces, websites, aplicações, experiências interativas e produtos digitais.',
-    icon: '/artwork/ui/icone-app-web.png',
+    icon: '/artwork/ui/icone-app-web.runtime.webp?v=294368b24849',
     href: '#apps-sites',
     focus: { distanceFactor: 2.05, minDistance: 29, maxDistance: 66, heightRatio: 0.6, lateralShift: 0.18 },
     mobileFocus: { distanceFactor: 2.5, minDistance: 37, maxDistance: 76, heightRatio: 0.68 },
@@ -187,7 +200,7 @@ const LANDMARK_EXPERIENCES = {
     title: '3D / Arquitetura',
     subtitle: '3D, ambientes e visualização',
     description: 'Projetos de arquitetura, ambientes 3D, visualização, Blender, Unreal e experiências espaciais.',
-    icon: '/artwork/ui/icone-3d-arquitetura.png',
+    icon: '/artwork/ui/icone-3d-arquitetura.runtime.webp?v=de1c05a93d3c',
     href: '#3d-arquitetura',
     focus: { distanceFactor: 2.28, minDistance: 25, maxDistance: 60, heightRatio: 0.64, lateralShift: 0.2 },
     mobileFocus: { distanceFactor: 2.7, minDistance: 33, maxDistance: 72, heightRatio: 0.7 },
@@ -821,6 +834,7 @@ async function initializeScene() {
     reportMobileAudit('first-render');
     setMobileDebugPhase('first render pronto');
     tamarindMetrics.firstRenderMs = performance.now();
+    tamarindMetrics.islandVisibleMs = tamarindMetrics.firstRenderMs;
     console.timeEnd('[Tamarind] tempo até first render');
     status.remove();
     const clock = new THREE.Clock();
@@ -1093,6 +1107,11 @@ async function initializeScene() {
         (total, entry) => total + (entry.transferSize || entry.encodedBodySize || 0),
         0,
       );
+      tamarindMetrics.longTaskCount = tamarindMetrics.longTasks.length;
+      tamarindMetrics.longTaskTotalMs = tamarindMetrics.longTasks.reduce(
+        (total, entry) => total + entry.durationMs,
+        0,
+      );
       const resourceCounts = resources.reduce((counts, entry) => {
         const url = entry.name.split('?')[0];
         counts[url] = (counts[url] ?? 0) + 1;
@@ -1113,12 +1132,19 @@ async function initializeScene() {
       if (new URLSearchParams(window.location.search).has('perf')) {
         const diagnostic = {
           firstRenderMs: Math.round(tamarindMetrics.firstRenderMs),
+          islandVisibleMs: Math.round(tamarindMetrics.islandVisibleMs),
           landmarksReadyMs: Math.round(tamarindMetrics.landmarksReadyMs),
           inhabitedReadyMs: Math.round(tamarindMetrics.inhabitedReadyMs),
           worldCompleteMs: Math.round(tamarindMetrics.worldCompleteMs),
+          navigationTtfbMs: Math.round(tamarindMetrics.navigationTtfbMs || 0),
+          requestCount: tamarindMetrics.requestCount,
           glbRequestCount: tamarindMetrics.glbRequestCount,
+          totalTransferBytes: tamarindMetrics.totalTransferBytes,
+          longTaskCount: tamarindMetrics.longTaskCount,
+          longTaskTotalMs: Math.round(tamarindMetrics.longTaskTotalMs),
           duplicateRequests: tamarindMetrics.duplicateRequests,
-          surfaceSampler: tamarindMetrics.surfaceSampler,
+          terrainSamplerBuildMs: Math.round(tamarindMetrics.terrainSamplerBuildMs || 0),
+          terrainSamplerReadyMs: Math.round(tamarindMetrics.terrainSamplerReadyMs || 0),
           assets: tamarindMetrics.assets.map((asset) => ({
             asset: asset.asset,
             bytes: asset.bytes,

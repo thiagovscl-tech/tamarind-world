@@ -47,7 +47,7 @@
   },
   {
     "name": "arquiteturaColiseu_texturizado.web.glb",
-    "active": true,
+    "active": false,
     "bytes": 4212348,
     "size": "4.02 MB",
     "meshes": 1,
@@ -85,7 +85,7 @@
   },
   {
     "name": "arvore.runtime.web.glb",
-    "active": true,
+    "active": false,
     "bytes": 7996472,
     "size": "7.63 MB",
     "meshes": 1,
@@ -145,7 +145,7 @@
   },
   {
     "name": "arvore.web.glb",
-    "active": true,
+    "active": false,
     "bytes": 16248820,
     "size": "15.50 MB",
     "meshes": 3,
@@ -335,6 +335,134 @@
       "KHR_mesh_quantization"
     ],
     "compressionCandidate": false
+  },
+  {
+    "name": "campfire.runtime.web.glb",
+    "active": true,
+    "bytes": 396708,
+    "size": "0.38 MB",
+    "meshes": 8,
+    "primitives": 8,
+    "triangles": 19964,
+    "materials": 2,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 20952
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 20532
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 39782
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 59050
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 14696
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/webp",
+        "width": 512,
+        "height": 512,
+        "bytes": 73384
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "EXT_meshopt_compression",
+      "EXT_texture_webp",
+      "KHR_mesh_quantization"
+    ],
+    "compressionCandidate": false
+  },
+  {
+    "name": "campfire.web.glb",
+    "active": false,
+    "bytes": 8344516,
+    "size": "7.96 MB",
+    "meshes": 8,
+    "primitives": 8,
+    "triangles": 19964,
+    "materials": 2,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1120268
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 639731
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1147597
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1756563
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 590224
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 2102162
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
   },
   {
     "name": "casanovatecnomago.web.glb",
@@ -591,7 +719,7 @@
   },
   {
     "name": "casteloSite.web.glb",
-    "active": true,
+    "active": false,
     "bytes": 11053180,
     "size": "10.54 MB",
     "meshes": 18,
@@ -730,7 +858,7 @@
   },
   {
     "name": "fantastic_castle.web.glb",
-    "active": true,
+    "active": false,
     "bytes": 1461288,
     "size": "1.39 MB",
     "meshes": 5,
@@ -927,6 +1055,29 @@
     "compressionCandidate": false
   },
   {
+    "name": "roman_temple.web.glb",
+    "active": true,
+    "bytes": 526624,
+    "size": "0.50 MB",
+    "meshes": 9,
+    "primitives": 9,
+    "triangles": 97139,
+    "materials": 2,
+    "textures": [],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "EXT_meshopt_compression",
+      "KHR_materials_pbrSpecularGlossiness",
+      "KHR_mesh_quantization"
+    ],
+    "compressionCandidate": false
+  },
+  {
     "name": "templo.web.glb",
     "active": true,
     "bytes": 7239600,
@@ -1033,5 +1184,131 @@
       "KHR_mesh_quantization"
     ],
     "compressionCandidate": false
+  },
+  {
+    "name": "tree_light_cluster.web.glb",
+    "active": true,
+    "bytes": 173352,
+    "size": "0.17 MB",
+    "meshes": 2,
+    "primitives": 2,
+    "triangles": 1629,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 256,
+        "height": 256,
+        "bytes": 67936
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "KHR_materials_specular"
+    ],
+    "compressionCandidate": true
+  },
+  {
+    "name": "tree_tecnomago.web.glb",
+    "active": true,
+    "bytes": 920960,
+    "size": "0.88 MB",
+    "meshes": 2,
+    "primitives": 2,
+    "triangles": 804,
+    "materials": 2,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/jpeg",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 446688
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 439880
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [],
+    "compressionCandidate": true
+  },
+  {
+    "name": "tree_type_a.web.glb",
+    "active": true,
+    "bytes": 1379956,
+    "size": "1.32 MB",
+    "meshes": 5,
+    "primitives": 5,
+    "triangles": 3266,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1172669
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 1,
+    "transparentInvisibleMaterials": 0,
+    "animations": 1,
+    "skins": 1,
+    "bones": 17,
+    "extensions": [],
+    "compressionCandidate": true
+  },
+  {
+    "name": "tree_type_b.web.glb",
+    "active": true,
+    "bytes": 1741100,
+    "size": "1.66 MB",
+    "meshes": 2,
+    "primitives": 2,
+    "triangles": 1488,
+    "materials": 2,
+    "textures": [
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1220832
+      },
+      {
+        "name": "(sem nome)",
+        "mimeType": "image/png",
+        "width": 512,
+        "height": 1024,
+        "bytes": 414109
+      }
+    ],
+    "duplicateMeshes": 0,
+    "zeroScaleNodes": 0,
+    "transparentInvisibleMaterials": 0,
+    "animations": 0,
+    "skins": 0,
+    "bones": 0,
+    "extensions": [
+      "KHR_materials_pbrSpecularGlossiness"
+    ],
+    "compressionCandidate": true
   }
 ]
