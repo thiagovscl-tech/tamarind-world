@@ -1003,7 +1003,7 @@ body.is-night-mode { background: #081526; }
     opacity: 0;
     pointer-events: none;
     transform: translate(-50%, -8px);
-    backdrop-filter: blur(12px) saturate(110%);
+    backdrop-filter: blur(6px) saturate(108%);
     transition: opacity 180ms ease, transform 200ms ease, visibility 200ms ease;
   }
 
@@ -1070,6 +1070,10 @@ body.is-night-mode { background: #081526; }
     background: transparent;
     box-shadow: none;
     transform: translate(-50%, -50%) scale(1);
+  }
+
+  .project-panel--video-library {
+    backdrop-filter: blur(8px) saturate(108%);
   }
   .landmark-link__label,
   .landmark-link__arrow { display: none; }

@@ -1178,6 +1178,35 @@ async function createCoastalTransition(terrain, worldBounds, oceanY) {
   return coast;
 }
 
+function configureLandmarkShadowBudget(root, maxCasters = 6) {
+  const candidates = [];
+  root.traverse((object) => {
+    if (!object.isMesh) return;
+    object.castShadow = false;
+    object.receiveShadow = true;
+    object.frustumCulled = true;
+    if (!object.geometry.boundingSphere) object.geometry.computeBoundingSphere();
+    const radius = object.geometry.boundingSphere?.radius ?? 0;
+    const scale = Math.max(object.scale.x, object.scale.y, object.scale.z);
+    candidates.push({ object, score: radius * scale });
+  });
+  candidates
+    .sort((a, b) => b.score - a.score)
+    .slice(0, maxCasters)
+    .forEach(({ object }) => {
+      object.castShadow = true;
+    });
+}
+
+function finalizeInstancedBounds(root) {
+  root.traverse((object) => {
+    if (!object.isInstancedMesh) return;
+    object.computeBoundingBox();
+    object.computeBoundingSphere();
+    object.frustumCulled = true;
+  });
+}
+
 async function loadTecnomagoHouse(terrain) {
   const gltf = await loadGlbOnce(TECNOMAGO_HOUSE_URL, 'Casa do Tecnomago');
   const source = gltf.scene;
@@ -1215,12 +1244,7 @@ async function loadTecnomagoHouse(terrain) {
   );
   houseGroup.add(source);
 
-  source.traverse((object) => {
-    if (!object.isMesh) return;
-    object.castShadow = true;
-    object.receiveShadow = true;
-    object.frustumCulled = true;
-  });
+  configureLandmarkShadowBudget(source, 5);
 
   const accessGroup = new THREE.Group();
   accessGroup.name = 'TecnomagoEntranceAccess';
@@ -1307,12 +1331,7 @@ async function loadArchitectureHouse(terrain) {
   );
   architectureGroup.add(source);
 
-  source.traverse((object) => {
-    if (!object.isMesh) return;
-    object.castShadow = true;
-    object.receiveShadow = true;
-    object.frustumCulled = true;
-  });
+  configureLandmarkShadowBudget(source, 5);
 
   console.info('[Tamarind] Casa 3D/Arquitetura carregada.', {
     position: architectureGroup.position.toArray(),
@@ -1372,12 +1391,7 @@ async function loadAppsBasilica(terrain) {
   );
   basilicaGroup.add(source);
 
-  source.traverse((object) => {
-    if (!object.isMesh) return;
-    object.castShadow = true;
-    object.receiveShadow = true;
-    object.frustumCulled = true;
-  });
+  configureLandmarkShadowBudget(source, 5);
 
   console.info('[Tamarind] Basílica Apps carregada.', {
     position: basilicaGroup.position.toArray(),
@@ -1431,12 +1445,7 @@ async function loadOrientalPagoda(terrain) {
   );
   templeGroup.add(source);
 
-  source.traverse((object) => {
-    if (!object.isMesh) return;
-    object.castShadow = true;
-    object.receiveShadow = true;
-    object.frustumCulled = true;
-  });
+  configureLandmarkShadowBudget(source, 5);
 
   console.info('[Tamarind] Pagode oriental carregado.', {
     position: templeGroup.position.toArray(),
@@ -1767,11 +1776,7 @@ function createHarborHut(materials, x, y, z, scale = 1) {
   window.position.set(1.25, 2.1, 2.1);
   hut.add(window);
 
-  hut.traverse((object) => {
-    if (!object.isMesh) return;
-    object.castShadow = true;
-    object.receiveShadow = true;
-  });
+  configureLandmarkShadowBudget(hut, 1);
   return hut;
 }
 
@@ -1823,7 +1828,7 @@ function createProceduralFishingBoat(oceanY, deckY, pierStartZ) {
   hullGeometry.computeVertexNormals();
   const hull = new THREE.Mesh(hullGeometry, hullMaterial);
   hull.name = 'FishingBoatHull';
-  hull.castShadow = true;
+  hull.castShadow = false;
   hull.receiveShadow = true;
   boat.add(hull);
 
@@ -1839,7 +1844,7 @@ function createProceduralFishingBoat(oceanY, deckY, pierStartZ) {
 
   const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.9, 1.35), paintedWood);
   cabin.position.set(0, 1.02, -1.35);
-  cabin.castShadow = true;
+  cabin.castShadow = false;
   boat.add(cabin);
   const cabinRoof = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.16, 1.62), hullMaterial);
   cabinRoof.position.set(0, 1.55, -1.35);
@@ -1934,7 +1939,7 @@ function createHarbor(terrain, oceanY) {
     for (const x of [-1.62, 1.62]) {
       const post = new THREE.Mesh(postGeometry, materials.darkWood);
       post.position.set(x, deckY - 1.4, z);
-      post.castShadow = true;
+      post.castShadow = false;
       harbor.add(post);
     }
   }
@@ -2006,14 +2011,14 @@ function createHarbor(terrain, oceanY) {
     const prop = new THREE.Mesh(type === 'barrel' ? barrelGeometry : crateGeometry, type === 'barrel' ? materials.darkWood : materials.wood);
     prop.position.set(x, deckY + 0.55, z);
     prop.rotation.y = (x + z) * 0.37;
-    prop.castShadow = true;
+    prop.castShadow = false;
     harbor.add(prop);
   }
   for (const [x, z] of [[-2.2, pierStartZ + 5.5], [2.1, pierStartZ + 11.2], [-4.8, pierStartZ + 10.8]]) {
     const sack = new THREE.Mesh(new THREE.SphereGeometry(0.48, 8, 6), materials.sack);
     sack.scale.set(1, 0.68, 0.82);
     sack.position.set(x, deckY + 0.4, z);
-    sack.castShadow = true;
+    sack.castShadow = false;
     harbor.add(sack);
   }
 
@@ -2413,11 +2418,7 @@ function createWindmillModel() {
   sails.add(hub);
   mill.add(sails);
 
-  mill.traverse((object) => {
-    if (!object.isMesh) return;
-    object.castShadow = true;
-    object.receiveShadow = true;
-  });
+  configureLandmarkShadowBudget(mill, 2);
   return mill;
 }
 
@@ -2623,7 +2624,7 @@ function createProceduralMillPond(terrain) {
     dryIslands.setMatrixAt(index, detailDummy.matrix);
   });
   dryIslands.instanceMatrix.needsUpdate = true;
-  dryIslands.receiveShadow = true;
+  dryIslands.receiveShadow = false;
   pond.add(dryIslands);
 
   const reedCount = 156;
@@ -2656,7 +2657,7 @@ function createProceduralMillPond(terrain) {
   }
   reeds.instanceMatrix.needsUpdate = true;
   reeds.castShadow = false;
-  reeds.receiveShadow = true;
+  reeds.receiveShadow = false;
   pond.add(reeds);
 
   const grassCount = 78;
@@ -2688,7 +2689,7 @@ function createProceduralMillPond(terrain) {
   }
   marshGrass.instanceMatrix.needsUpdate = true;
   marshGrass.castShadow = false;
-  marshGrass.receiveShadow = true;
+  marshGrass.receiveShadow = false;
   pond.add(marshGrass);
 
   const stoneCount = 54;
@@ -2710,7 +2711,7 @@ function createProceduralMillPond(terrain) {
   }
   stones.instanceMatrix.needsUpdate = true;
   stones.castShadow = false;
-  stones.receiveShadow = true;
+  stones.receiveShadow = false;
   pond.add(stones);
 
   const leafCount = 36;
@@ -2732,7 +2733,7 @@ function createProceduralMillPond(terrain) {
   }
   floatingLeaves.instanceMatrix.needsUpdate = true;
   floatingLeaves.castShadow = false;
-  floatingLeaves.receiveShadow = true;
+  floatingLeaves.receiveShadow = false;
   pond.add(floatingLeaves);
 
   const branchCount = 13;
@@ -2753,7 +2754,7 @@ function createProceduralMillPond(terrain) {
   }
   branches.instanceMatrix.needsUpdate = true;
   branches.castShadow = false;
-  branches.receiveShadow = true;
+  branches.receiveShadow = false;
   pond.add(branches);
 
   pond.userData.update = (elapsed) => {
@@ -2791,7 +2792,13 @@ export async function createWorld3d() {
   key.name = 'NeutralTerrainKey';
   key.position.set(-70, 95, 65);
   key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
+  const mobileShadowViewport = window.matchMedia([
+    '(max-width: 768px)',
+    '(max-width: 950px) and (max-height: 500px)',
+    '(hover: none) and (pointer: coarse)',
+  ].join(', ')).matches;
+  const shadowMapSize = mobileShadowViewport ? 1024 : 2048;
+  key.shadow.mapSize.set(shadowMapSize, shadowMapSize);
   key.shadow.camera.left = -78;
   key.shadow.camera.right = 78;
   key.shadow.camera.top = 72;
@@ -2848,7 +2855,7 @@ export async function createWorld3d() {
   ocean.name = 'TamarindOcean';
   ocean.rotation.x = -Math.PI / 2;
   ocean.position.y = worldBounds.min.y - 1.1;
-  ocean.receiveShadow = true;
+  ocean.receiveShadow = false;
   world.add(ocean);
 
   let secondaryLoadPromise = null;
@@ -2863,6 +2870,7 @@ export async function createWorld3d() {
     secondaryLoadPromise = (async () => {
       const notify = (key, object) => onAssetLoaded?.({ key, object, landmarks });
       const addWorldAsset = (key, object) => {
+        finalizeInstancedBounds(object);
         world.add(object);
         notify(key, object);
         return object;

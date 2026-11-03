@@ -8,6 +8,9 @@ import { updateBearProcedural } from './scene3d/createBearCharacter3d.js';
 const debugParams = new URLSearchParams(window.location.search);
 const mobileDebugEnabled = debugParams.get('debugMobile') === '1';
 const debugPerformanceEnabled = debugParams.get('debugPerformance') === '1';
+const loadDiagnosticsEnabled = debugPerformanceEnabled
+  || mobileDebugEnabled
+  || debugParams.has('perf');
 let mobileDebugStage = 8;
 let mobileDebugLightStage = 6;
 let attachMobileDebug = () => {};
@@ -20,8 +23,10 @@ if (mobileDebugEnabled) {
   setMobileDebugPhase = mobileDebug.setMobileDebugPhase;
 }
 
-console.time('[Tamarind] tempo até first render');
-console.time('[Tamarind] tempo até mundo completo');
+if (loadDiagnosticsEnabled) {
+  console.time('[Tamarind] tempo até first render');
+  console.time('[Tamarind] tempo até mundo completo');
+}
 const tamarindMetrics = {
   startedAt: 0,
   scriptStartedMs: performance.now(),
@@ -44,7 +49,7 @@ if (navigationEntry?.domContentLoadedEventEnd) {
     tamarindMetrics.domContentLoadedMs = performance.now();
   }, { once: true });
 }
-if ('PerformanceObserver' in window) {
+if (loadDiagnosticsEnabled && 'PerformanceObserver' in window) {
   try {
     const longTaskObserver = new PerformanceObserver((list) => {
       list.getEntries().forEach((entry) => {
@@ -86,6 +91,8 @@ let coast = null;
 let millPond = null;
 let campfire = null;
 let landmarkTargets = null;
+let landmarkNavigationDirty = true;
+let lastLandmarkNavigationAt = 0;
 let dayNightController = null;
 let nightTarget = 0;
 let nightMix = 0;
@@ -645,14 +652,14 @@ function createDayNightController(scene, activeRenderer, landmarks, activeWater)
       if (!mobileDebugEnabled) return;
       toggleStartedAt = performance.now();
       toggleTarget = target;
-      console.time('night-mode-toggle');
+      if (loadDiagnosticsEnabled) console.time('night-mode-toggle');
       emitLightingSnapshot('before');
     },
     completeToggleIfReady(value, target) {
       if (!mobileDebugEnabled || toggleTarget !== target || Math.abs(value - target) > 0.002) return;
       const elapsedMs = performance.now() - toggleStartedAt;
       toggleTarget = null;
-      console.timeEnd('night-mode-toggle');
+      if (loadDiagnosticsEnabled) console.timeEnd('night-mode-toggle');
       emitLightingSnapshot('after', elapsedMs);
     },
     update(value) {
@@ -757,12 +764,26 @@ function updateLandmarkNavigation() {
     const x = THREE.MathUtils.clamp(projectedX, safeMarginX, bounds.width - safeMarginX);
     const y = THREE.MathUtils.clamp(projectedY, safeMarginY, bounds.height - safeMarginY);
 
-    link.style.left = `${x.toFixed(1)}px`;
-    link.style.top = `${y.toFixed(1)}px`;
-    link.classList.toggle('is-visible', visible);
-    link.setAttribute('aria-hidden', visible ? 'false' : 'true');
-    link.tabIndex = visible ? 0 : -1;
+    const nextX = x.toFixed(1);
+    const nextY = y.toFixed(1);
+    const nextVisible = visible ? 'true' : 'false';
+    if (link.dataset.screenX !== nextX) {
+      link.style.left = `${nextX}px`;
+      link.dataset.screenX = nextX;
+    }
+    if (link.dataset.screenY !== nextY) {
+      link.style.top = `${nextY}px`;
+      link.dataset.screenY = nextY;
+    }
+    if (link.dataset.screenVisible !== nextVisible) {
+      link.classList.toggle('is-visible', visible);
+      link.setAttribute('aria-hidden', visible ? 'false' : 'true');
+      link.tabIndex = visible ? 0 : -1;
+      link.dataset.screenVisible = nextVisible;
+    }
   });
+  landmarkNavigationDirty = false;
+  lastLandmarkNavigationAt = performance.now();
 }
 
 Object.values(landmarkLinks).forEach((link) => {
@@ -894,6 +915,7 @@ async function initializeScene() {
           return [key, landmarkWorldPosition.clone()];
         }),
       );
+      landmarkNavigationDirty = true;
     };
     refreshLandmarkAnchors();
     camera.userData.baseTarget.set(...cameraTarget);
@@ -917,7 +939,7 @@ async function initializeScene() {
     setMobileDebugPhase('first render pronto');
     tamarindMetrics.firstRenderMs = performance.now();
     tamarindMetrics.islandVisibleMs = tamarindMetrics.firstRenderMs;
-    console.timeEnd('[Tamarind] tempo até first render');
+    if (loadDiagnosticsEnabled) console.timeEnd('[Tamarind] tempo até first render');
     status.remove();
     const clock = new THREE.Clock();
     const basePosition = camera.position.clone();
@@ -1088,7 +1110,22 @@ async function initializeScene() {
     let performanceReported = false;
     let updateGoatWalk = null;
     let updateWizardNpc = null;
+    let lastEnvironmentUpdateAt = 0;
+    let lastAdaptiveFrameAt = 0;
+    let adaptiveSampleStartedAt = 0;
+    let adaptiveDprSettled = !mobileViewport.matches
+      || mobileDebugEnabled
+      || renderer.getPixelRatio() <= 1;
+    const adaptiveFrameTimes = [];
+    const hotspotCameraPosition = camera.position.clone();
+    const hotspotCameraQuaternion = camera.quaternion.clone();
     renderer.setAnimationLoop((frameTimestamp) => {
+      if (document.visibilityState === 'hidden') {
+        clock.getDelta();
+        runtimeProfileLastFrameAt = 0;
+        lastAdaptiveFrameAt = 0;
+        return;
+      }
       if (runtimeProfileSample) {
         if (runtimeProfileLastFrameAt > 0) {
           const frameTime = frameTimestamp - runtimeProfileLastFrameAt;
@@ -1103,9 +1140,12 @@ async function initializeScene() {
       const delta = Math.min(clock.getDelta(), 0.05);
       const elapsed = clock.elapsedTime;
       const smooth = 1 - Math.exp(-delta * 3.2);
-      nightMix = THREE.MathUtils.damp(nightMix, nightTarget, 2.1, delta);
-      dayNightController?.update(nightMix);
-      dayNightController?.completeToggleIfReady(nightMix, nightTarget);
+      const nightTransitionActive = Math.abs(nightMix - nightTarget) > 0.0005;
+      if (nightTransitionActive) {
+        nightMix = THREE.MathUtils.damp(nightMix, nightTarget, 2.1, delta);
+        dayNightController?.update(nightMix);
+        dayNightController?.completeToggleIfReady(nightMix, nightTarget);
+      }
       easedPointer.lerp(pointer, smooth);
       updateBearProcedural(bear, easedPointer, elapsed, delta);
       updateGoatWalk?.(elapsed, delta);
@@ -1148,16 +1188,53 @@ async function initializeScene() {
       }
       const waterShader = water?.material?.userData?.shader;
       if (waterShader?.uniforms?.uWaterTime) waterShader.uniforms.uWaterTime.value = elapsed;
-      coast?.userData?.update?.(elapsed);
-      millPond?.userData?.update?.(elapsed);
-      campfire?.userData?.update?.(nightMix, elapsed);
+      if (frameTimestamp - lastEnvironmentUpdateAt >= 33) {
+        coast?.userData?.update?.(elapsed);
+        millPond?.userData?.update?.(elapsed);
+        campfire?.userData?.update?.(nightMix, elapsed);
+        lastEnvironmentUpdateAt = frameTimestamp;
+      }
       renderer.render(scene, camera);
-      updateLandmarkNavigation();
+      const cameraMoved = camera.position.distanceToSquared(hotspotCameraPosition) > 0.000001
+        || 1 - Math.abs(camera.quaternion.dot(hotspotCameraQuaternion)) > 0.000001;
+      if ((cameraMoved || landmarkNavigationDirty)
+        && frameTimestamp - lastLandmarkNavigationAt >= 33) {
+        updateLandmarkNavigation();
+        hotspotCameraPosition.copy(camera.position);
+        hotspotCameraQuaternion.copy(camera.quaternion);
+      }
+
+      if (!adaptiveDprSettled) {
+        if (!adaptiveSampleStartedAt) adaptiveSampleStartedAt = frameTimestamp;
+        if (lastAdaptiveFrameAt) {
+          const adaptiveFrameTime = frameTimestamp - lastAdaptiveFrameAt;
+          if (adaptiveFrameTime > 0 && adaptiveFrameTime < 250) {
+            adaptiveFrameTimes.push(adaptiveFrameTime);
+          }
+        }
+        lastAdaptiveFrameAt = frameTimestamp;
+        if (adaptiveFrameTimes.length >= 180
+          || frameTimestamp - adaptiveSampleStartedAt >= 6000) {
+          const sortedFrameTimes = [...adaptiveFrameTimes].sort((a, b) => a - b);
+          const averageFrameTime = adaptiveFrameTimes.reduce((sum, value) => sum + value, 0)
+            / Math.max(adaptiveFrameTimes.length, 1);
+          const p95FrameTime = sortedFrameTimes[
+            Math.min(sortedFrameTimes.length - 1, Math.floor(sortedFrameTimes.length * 0.95))
+          ] ?? 0;
+          if (averageFrameTime > 24 || p95FrameTime > 34) {
+            renderer.setPixelRatio(1);
+            renderer.userData.runtimePixelRatio = 1;
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            landmarkNavigationDirty = true;
+          }
+          adaptiveDprSettled = true;
+        }
+      }
 
       performanceFrames += 1;
       const performanceNow = performance.now();
       const performanceDuration = performanceNow - performanceSampleStart;
-      if (!performanceReported && performanceDuration >= 5000) {
+      if (loadDiagnosticsEnabled && !performanceReported && performanceDuration >= 5000) {
         const fps = (performanceFrames * 1000) / performanceDuration;
         console.info(
           `[Tamarind] Performance moderada: ${fps.toFixed(1)} FPS | `
@@ -1178,11 +1255,13 @@ async function initializeScene() {
         dayNightController.refresh();
         dayNightController.update(nightMix);
         refreshLandmarkAnchors();
-        console.info(`[Tamarind] Asset secundário integrado: ${key}.`);
+        if (loadDiagnosticsEnabled) console.info(`[Tamarind] Asset secundário integrado: ${key}.`);
       },
       onPhaseComplete: (phase, elapsedMs) => {
         setMobileDebugPhase(`${phase} pronto · ${Math.round(elapsedMs)}ms`);
-        console.info(`[Tamarind] Fase ${phase} pronta em ${Math.round(elapsedMs)} ms.`);
+        if (loadDiagnosticsEnabled) {
+          console.info(`[Tamarind] Fase ${phase} pronta em ${Math.round(elapsedMs)} ms.`);
+        }
       },
     }).then((secondary) => {
       updateGoatWalk = secondary.updateGoatWalk;
@@ -1213,15 +1292,17 @@ async function initializeScene() {
       tamarindMetrics.duplicateRequests = Object.entries(resourceCounts)
         .filter(([, count]) => count > 1)
         .map(([url, count]) => ({ url, count }));
-      console.table(tamarindMetrics.assets.map((asset) => ({
-        asset: asset.asset,
-        phase: asset.phase,
-        sizeMB: (asset.bytes / 1024 / 1024).toFixed(2),
-        downloadMs: Math.round(asset.downloadMs),
-        parseMs: Math.round(asset.parseMs),
-        totalMs: Math.round(asset.totalMs),
-      })));
-      console.info('[Tamarind] Métricas de carregamento.', JSON.stringify(tamarindMetrics));
+      if (loadDiagnosticsEnabled) {
+        console.table(tamarindMetrics.assets.map((asset) => ({
+          asset: asset.asset,
+          phase: asset.phase,
+          sizeMB: (asset.bytes / 1024 / 1024).toFixed(2),
+          downloadMs: Math.round(asset.downloadMs),
+          parseMs: Math.round(asset.parseMs),
+          totalMs: Math.round(asset.totalMs),
+        })));
+        console.info('[Tamarind] Métricas de carregamento.', JSON.stringify(tamarindMetrics));
+      }
       if (debugPerformanceEnabled) {
         window.setTimeout(() => startRuntimeProfile('world-complete'), 1200);
       }
@@ -1262,11 +1343,11 @@ async function initializeScene() {
           `${window.location.pathname}${window.location.search}#metrics=${encodeURIComponent(JSON.stringify(diagnostic))}`,
         );
       }
-      console.timeEnd('[Tamarind] tempo até mundo completo');
+      if (loadDiagnosticsEnabled) console.timeEnd('[Tamarind] tempo até mundo completo');
     }).catch((error) => {
       console.error('Falha ao carregar assets secundários do mundo Tamarind.', error);
       setMobileDebugPhase(`ERRO secundário: ${error?.message || error}`);
-      console.timeEnd('[Tamarind] tempo até mundo completo');
+      if (loadDiagnosticsEnabled) console.timeEnd('[Tamarind] tempo até mundo completo');
     });
   } catch (error) {
     console.error('Falha ao carregar o mundo 3D Tamarind.', error);
@@ -1284,7 +1365,9 @@ const syncViewport = () => {
   const height = container.clientHeight;
   if (!width || !height) return;
   const pixelRatioCap = mobileDebugEnabled ? 1 : (mobileViewport.matches ? 1.25 : 1.5);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, pixelRatioCap));
+  const requestedPixelRatio = Math.min(window.devicePixelRatio || 1, pixelRatioCap);
+  const runtimePixelRatio = renderer.userData.runtimePixelRatio ?? requestedPixelRatio;
+  renderer.setPixelRatio(Math.min(requestedPixelRatio, runtimePixelRatio));
   renderer.setSize(width, height);
   resizeCamera3d(camera, width / height);
   updateResponsiveCamera?.(true);
