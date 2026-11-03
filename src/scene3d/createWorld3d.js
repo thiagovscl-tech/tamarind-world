@@ -4,20 +4,21 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 THREE.Cache.enabled = true;
 
-const TERRAIN_URL = '/artwork/models/ilha_texturizada.web.glb';
-const TECNOMAGO_HOUSE_URL = '/artwork/models/casanovatecnomago.web.glb';
-const ARCHITECTURE_HOUSE_URL = '/artwork/models/architecture_landmark.web.glb';
-const APPS_BASILICA_URL = '/artwork/models/basilica_texturizada.web.glb';
-const TREE_TYPE_A_URL = '/artwork/models/tree_type_a.web.glb';
-const TREE_TYPE_B_URL = '/artwork/models/tree_type_b.web.glb';
-const TREE_LIGHT_CLUSTER_URL = '/artwork/models/tree_light_cluster.web.glb';
-const TREE_TECNOMAGO_URL = '/artwork/models/tree_tecnomago.web.glb';
-const TEMPLE_URL = '/artwork/models/templo.web.glb';
-const SETTLEMENT_HOUSE_URL = '/artwork/models/casasite.web.glb';
-const BACKGROUND_CASTLE_URL = '/artwork/models/roman_temple.glb';
-const RIGGED_GOAT_URL = '/artwork/models/bode_rigged.web.glb';
-const WIZARD_NPC_URL = '/artwork/models/free_battlemage_wizard.web.glb';
-const CAMPFIRE_URL = '/artwork/models/campfire.web.glb';
+// Content hashes make the long-lived browser cache safe across deployments.
+const TERRAIN_URL = '/artwork/models/ilha_texturizada.web.glb?v=33206850dc14';
+const TECNOMAGO_HOUSE_URL = '/artwork/models/casanovatecnomago.web.glb?v=0a89432b6ecd';
+const ARCHITECTURE_HOUSE_URL = '/artwork/models/architecture_landmark.web.glb?v=7fd095f987b2';
+const APPS_BASILICA_URL = '/artwork/models/basilica_texturizada.web.glb?v=33861925ddba';
+const TREE_TYPE_A_URL = '/artwork/models/tree_type_a.web.glb?v=9143bdc0ab85';
+const TREE_TYPE_B_URL = '/artwork/models/tree_type_b.web.glb?v=46ae11f15a0b';
+const TREE_LIGHT_CLUSTER_URL = '/artwork/models/tree_light_cluster.web.glb?v=d19829a2f15b';
+const TREE_TECNOMAGO_URL = '/artwork/models/tree_tecnomago.web.glb?v=3234ed2e0299';
+const TEMPLE_URL = '/artwork/models/templo.web.glb?v=2ae217c2250a';
+const SETTLEMENT_HOUSE_URL = '/artwork/models/casasite.web.glb?v=aa864a626482';
+const BACKGROUND_CASTLE_URL = '/artwork/models/roman_temple.web.glb?v=f17717b7ac30';
+const RIGGED_GOAT_URL = '/artwork/models/bode_rigged.web.glb?v=1233e20fcabe';
+const WIZARD_NPC_URL = '/artwork/models/free_battlemage_wizard.web.glb?v=2f03afab3144';
+const CAMPFIRE_URL = '/artwork/models/campfire.runtime.web.glb?v=9bded464387a';
 const COAST_DATA_URL = '/artwork/data/coastline.web.json';
 const TARGET_HORIZONTAL_SIZE = 150;
 
@@ -2880,23 +2881,22 @@ export async function createWorld3d() {
       });
 
       console.time('[Tamarind] fase 2 — landmarks principais');
-      // Start only the three landmark downloads together. Parsing remains
-      // incremental so large GLBs cannot monopolize the main thread at once.
-      primeGlbDownload(TECNOMAGO_HOUSE_URL, 'Casa do Tecnomago', 'landmarks');
-      primeGlbDownload(APPS_BASILICA_URL, 'Basílica Apps', 'landmarks');
-      primeGlbDownload(ARCHITECTURE_HOUSE_URL, 'Coliseu 3D/Arquitetura', 'landmarks');
-      const tecnomagoHouse = await runWhenIdle(() => loadTecnomagoHouse(terrainGroup));
+      // The critical frame is already visible. Start the three independent
+      // landmarks together so one parse/integration never blocks the next.
+      const [tecnomagoHouse, appsBasilica, architectureHouse] = await Promise.all([
+        runWhenIdle(() => loadTecnomagoHouse(terrainGroup)),
+        runWhenIdle(() => loadAppsBasilica(terrainGroup)),
+        runWhenIdle(() => loadArchitectureHouse(terrainGroup)),
+      ]);
       landmarks.tecnomago = tecnomagoHouse;
       addWorldAsset('tecnomago', tecnomagoHouse);
       if (tecnomagoHouse.userData.entranceAccess) {
         world.add(tecnomagoHouse.userData.entranceAccess);
       }
 
-      const appsBasilica = await runWhenIdle(() => loadAppsBasilica(terrainGroup));
       landmarks.apps = appsBasilica;
       addWorldAsset('apps', appsBasilica);
 
-      const architectureHouse = await runWhenIdle(() => loadArchitectureHouse(terrainGroup));
       landmarks.architecture = architectureHouse;
       addWorldAsset('architecture', architectureHouse);
       console.timeEnd('[Tamarind] fase 2 — landmarks principais');
@@ -3019,13 +3019,13 @@ export async function createWorld3d() {
       primeGlbDownload(TREE_TECNOMAGO_URL, 'árvore estilizada do Tecnomago', 'inhabited');
       primeGlbDownload(RIGGED_GOAT_URL, 'bode', 'inhabited');
       primeGlbDownload(WIZARD_NPC_URL, 'mago NPC', 'inhabited');
-      const pagoda = await runWhenIdle(() => loadOrientalPagoda(terrainGroup));
+      const [pagoda, castleResult, settlement] = await Promise.all([
+        runWhenIdle(() => loadOrientalPagoda(terrainGroup)),
+        runWhenIdle(() => loadBackgroundCastle(terrainGroup)),
+        runWhenIdle(() => createMedievalSettlement(terrainGroup, ocean.position.y)),
+      ]);
       addWorldAsset('pagoda', pagoda);
-
-      const castleResult = await runWhenIdle(() => loadBackgroundCastle(terrainGroup));
       const backgroundCastle = addWorldAsset('castle', castleResult.castle);
-
-      const settlement = await runWhenIdle(() => createMedievalSettlement(terrainGroup, ocean.position.y));
       addWorldAsset('settlement', settlement);
 
       const vegetation = await runWhenIdle(() => (
@@ -3033,10 +3033,11 @@ export async function createWorld3d() {
       ));
       addWorldAsset('vegetation', vegetation);
 
-      const windmills = await runWhenIdle(() => createWindmillPair(terrainGroup));
+      const [windmills, millPond] = await Promise.all([
+        runWhenIdle(() => createWindmillPair(terrainGroup)),
+        runWhenIdle(() => createProceduralMillPond(terrainGroup)),
+      ]);
       addWorldAsset('windmills', windmills);
-
-      const millPond = await runWhenIdle(() => createProceduralMillPond(terrainGroup));
       addWorldAsset('millPond', millPond);
 
       const goatAvoidObjects = [
@@ -3053,12 +3054,14 @@ export async function createWorld3d() {
       windmills.traverse((object) => {
         if (object.name === 'MedievalWindmillModel') goatAvoidObjects.push(object);
       });
-      const goatResult = await runWhenIdle(() => loadRiggedGoat(terrainGroup, {
-        treePlacements: vegetation.userData.placements,
-        avoidObjects: goatAvoidObjects,
-      }));
+      const [goatResult, wizardResult] = await Promise.all([
+        runWhenIdle(() => loadRiggedGoat(terrainGroup, {
+          treePlacements: vegetation.userData.placements,
+          avoidObjects: goatAvoidObjects,
+        })),
+        runWhenIdle(() => loadWizardNpc(terrainGroup, tecnomagoHouse)),
+      ]);
       addWorldAsset('goat', goatResult.goat);
-      const wizardResult = await runWhenIdle(() => loadWizardNpc(terrainGroup, tecnomagoHouse));
       addWorldAsset('wizard', wizardResult.wizard);
       console.timeEnd('[Tamarind] fase 3 — mundo habitado');
       getMetrics().inhabitedReadyMs = performance.now() - getMetrics().startedAt;
@@ -3066,13 +3069,13 @@ export async function createWorld3d() {
 
       console.time('[Tamarind] fase 4 — acabamento costeiro');
       primeGlbDownload(CAMPFIRE_URL, 'fogueira do Tecnomago', 'decor');
-      const harbor = await runWhenIdle(() => createHarbor(terrainGroup, ocean.position.y));
+      const [harbor, coast, campfire] = await Promise.all([
+        runWhenIdle(() => createHarbor(terrainGroup, ocean.position.y)),
+        runWhenIdle(() => createCoastalTransition(terrainGroup, worldBounds, ocean.position.y)),
+        runWhenIdle(() => loadTecnomagoCampfire(terrainGroup)),
+      ]);
       addWorldAsset('harbor', harbor);
-      const coast = await runWhenIdle(() => (
-        createCoastalTransition(terrainGroup, worldBounds, ocean.position.y)
-      ));
       addWorldAsset('coast', coast);
-      const campfire = await runWhenIdle(() => loadTecnomagoCampfire(terrainGroup));
       addWorldAsset('campfire', campfire);
       console.timeEnd('[Tamarind] fase 4 — acabamento costeiro');
       getMetrics().decorReadyMs = performance.now() - getMetrics().startedAt;
