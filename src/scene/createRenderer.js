@@ -21,8 +21,8 @@ export function createRenderer(container) {
   const pixelRatioCap = debugMobile ? 1 : (mobileViewport.matches ? 1.25 : 1.5);
   const initialPixelRatio = Math.min(window.devicePixelRatio || 1, pixelRatioCap);
   renderer.setPixelRatio(initialPixelRatio);
-  renderer.userData.runtimePixelRatio = initialPixelRatio;
-  renderer.userData.pixelRatioCap = pixelRatioCap;
+  renderer.runtimePixelRatio = initialPixelRatio;
+  renderer.pixelRatioCap = pixelRatioCap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;

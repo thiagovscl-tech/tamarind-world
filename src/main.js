@@ -1223,7 +1223,7 @@ async function initializeScene() {
           ] ?? 0;
           if (averageFrameTime > 24 || p95FrameTime > 34) {
             renderer.setPixelRatio(1);
-            renderer.userData.runtimePixelRatio = 1;
+            renderer.runtimePixelRatio = 1;
             renderer.setSize(container.clientWidth, container.clientHeight);
             landmarkNavigationDirty = true;
           }
@@ -1366,7 +1366,7 @@ const syncViewport = () => {
   if (!width || !height) return;
   const pixelRatioCap = mobileDebugEnabled ? 1 : (mobileViewport.matches ? 1.25 : 1.5);
   const requestedPixelRatio = Math.min(window.devicePixelRatio || 1, pixelRatioCap);
-  const runtimePixelRatio = renderer.userData.runtimePixelRatio ?? requestedPixelRatio;
+  const runtimePixelRatio = renderer.runtimePixelRatio ?? requestedPixelRatio;
   renderer.setPixelRatio(Math.min(requestedPixelRatio, runtimePixelRatio));
   renderer.setSize(width, height);
   resizeCamera3d(camera, width / height);
