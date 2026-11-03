@@ -7,6 +7,7 @@ import { updateBearProcedural } from './scene3d/createBearCharacter3d.js';
 
 const debugParams = new URLSearchParams(window.location.search);
 const mobileDebugEnabled = debugParams.get('debugMobile') === '1';
+const debugPerformanceEnabled = debugParams.get('debugPerformance') === '1';
 let mobileDebugStage = 8;
 let mobileDebugLightStage = 6;
 let attachMobileDebug = () => {};
@@ -99,6 +100,87 @@ const activePointers = new Map();
 let pinchDistance = 0;
 let mobileZoom = 1;
 let updateResponsiveCamera = null;
+let runtimeProfileSample = null;
+let runtimeProfileLastFrameAt = 0;
+
+function collectRuntimeSceneStats(scene) {
+  const lights = [];
+  const materials = new Set();
+  let meshes = 0;
+  let shadowCasters = 0;
+  let shadowReceivers = 0;
+  scene?.traverse((object) => {
+    if (object.isLight) lights.push(object);
+    if (!object.isMesh) return;
+    meshes += 1;
+    if (object.castShadow) shadowCasters += 1;
+    if (object.receiveShadow) shadowReceivers += 1;
+    const meshMaterials = Array.isArray(object.material) ? object.material : [object.material];
+    meshMaterials.filter(Boolean).forEach((material) => materials.add(material));
+  });
+  return {
+    meshes,
+    materials: materials.size,
+    shadowCasters,
+    shadowReceivers,
+    lights: lights.length,
+    shadowLights: lights.filter((light) => light.castShadow).length,
+  };
+}
+
+function finishRuntimeProfile() {
+  const sample = runtimeProfileSample;
+  runtimeProfileSample = null;
+  runtimeProfileLastFrameAt = 0;
+  if (!sample?.frameTimes.length) return;
+  const sorted = [...sample.frameTimes].sort((a, b) => a - b);
+  const total = sample.frameTimes.reduce((sum, value) => sum + value, 0);
+  const averageFrameMs = total / sample.frameTimes.length;
+  const p95Index = Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1);
+  const sceneStats = collectRuntimeSceneStats(activeScene);
+  const drawingBuffer = renderer.getDrawingBufferSize(new THREE.Vector2());
+  const profile = {
+    reason: sample.reason,
+    mobile: mobileViewport.matches,
+    durationMs: Math.round(total),
+    frames: sample.frameTimes.length,
+    averageFps: Number((1000 / averageFrameMs).toFixed(2)),
+    averageFrameMs: Number(averageFrameMs.toFixed(2)),
+    p95FrameMs: Number(sorted[p95Index].toFixed(2)),
+    drawCalls: renderer.info.render.calls,
+    triangles: renderer.info.render.triangles,
+    geometries: renderer.info.memory.geometries,
+    textures: renderer.info.memory.textures,
+    programs: renderer.info.programs?.length || 0,
+    ...sceneStats,
+    effectiveDpr: renderer.getPixelRatio(),
+    drawingBuffer: `${drawingBuffer.x}x${drawingBuffer.y}`,
+    viewport: `${container.clientWidth}x${container.clientHeight}`,
+  };
+  window.__tamarindRuntimeProfile = profile;
+  console.info('[Tamarind][Runtime Profile]', profile);
+  document.title = [
+    'Tamarind Runtime',
+    `fps=${profile.averageFps}`,
+    `p95=${profile.p95FrameMs}ms`,
+    `calls=${profile.drawCalls}`,
+  ].join(' | ');
+  window.history.replaceState(
+    null,
+    '',
+    `${window.location.pathname}${window.location.search}#runtimeProfile=${encodeURIComponent(JSON.stringify(profile))}`,
+  );
+}
+
+function startRuntimeProfile(reason = 'manual', durationMs = 8000) {
+  if (!debugPerformanceEnabled || document.visibilityState !== 'visible') return;
+  runtimeProfileLastFrameAt = 0;
+  runtimeProfileSample = { reason, durationMs, elapsedMs: 0, frameTimes: [] };
+}
+
+if (debugPerformanceEnabled) {
+  window.__startTamarindRuntimeProfile = startRuntimeProfile;
+}
 
 function reportMobileAudit(reason) {
   if (!mobileAuditEnabled) return;
@@ -1006,7 +1088,18 @@ async function initializeScene() {
     let performanceReported = false;
     let updateGoatWalk = null;
     let updateWizardNpc = null;
-    renderer.setAnimationLoop(() => {
+    renderer.setAnimationLoop((frameTimestamp) => {
+      if (runtimeProfileSample) {
+        if (runtimeProfileLastFrameAt > 0) {
+          const frameTime = frameTimestamp - runtimeProfileLastFrameAt;
+          if (frameTime > 0 && frameTime < 1000) {
+            runtimeProfileSample.frameTimes.push(frameTime);
+            runtimeProfileSample.elapsedMs += frameTime;
+          }
+        }
+        runtimeProfileLastFrameAt = frameTimestamp;
+        if (runtimeProfileSample.elapsedMs >= runtimeProfileSample.durationMs) finishRuntimeProfile();
+      }
       const delta = Math.min(clock.getDelta(), 0.05);
       const elapsed = clock.elapsedTime;
       const smooth = 1 - Math.exp(-delta * 3.2);
@@ -1129,6 +1222,9 @@ async function initializeScene() {
         totalMs: Math.round(asset.totalMs),
       })));
       console.info('[Tamarind] Métricas de carregamento.', JSON.stringify(tamarindMetrics));
+      if (debugPerformanceEnabled) {
+        window.setTimeout(() => startRuntimeProfile('world-complete'), 1200);
+      }
       if (new URLSearchParams(window.location.search).has('perf')) {
         const diagnostic = {
           firstRenderMs: Math.round(tamarindMetrics.firstRenderMs),
