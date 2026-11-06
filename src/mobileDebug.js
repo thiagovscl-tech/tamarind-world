@@ -30,7 +30,6 @@ const state = {
   errors: [],
   nightBefore: '—',
   nightAfter: '—',
-  temple: '—',
 };
 
 let panel = null;
@@ -122,10 +121,9 @@ function attachGlobalListeners() {
     refreshPanel();
   });
   window.addEventListener('tamarind:night-debug', (event) => {
-    const { moment, summary, temple } = event.detail || {};
+    const { moment, summary } = event.detail || {};
     if (moment === 'before') state.nightBefore = summary || '—';
     if (moment === 'after') state.nightAfter = summary || '—';
-    if (temple) state.temple = temple;
     refreshPanel();
   });
 }
@@ -166,7 +164,6 @@ function refreshPanel() {
     `LIGHT     ${mobileDebugLightStage}/6 · ${LIGHT_STAGES[mobileDebugLightStage]}`,
     `NIGHT PRE ${state.nightBefore}`,
     `NIGHT POST ${state.nightAfter}`,
-    `TEMPLE    ${state.temple}`,
     state.errors.length ? `ERRORS\n${state.errors.join('\n---\n')}` : 'ERRORS    nenhum',
   ].join('\n');
 }

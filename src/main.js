@@ -455,7 +455,6 @@ function createDayNightController(scene, activeRenderer, landmarks, activeWater)
       ['tecnomago', landmarks.tecnomago],
       ['apps', landmarks.apps],
       ['architecture', landmarks.architecture],
-      ['pagoda', scene.getObjectByName('OrientalPagoda')],
       ['castle', scene.getObjectByName('DistantHillCastleGLB')],
     ].filter(([, object]) => Boolean(object));
     for (const [key, landmark] of localLightTargets) {
@@ -487,33 +486,6 @@ function createDayNightController(scene, activeRenderer, landmarks, activeWater)
   const colorScratch = new THREE.Color();
   let toggleStartedAt = 0;
   let toggleTarget = null;
-  const inspectTempleMaterials = () => {
-    const temple = scene.getObjectByName('OrientalPagoda');
-    if (!temple) return 'ainda não carregado';
-    const materials = new Set();
-    temple.traverse((object) => {
-      if (!object.isMesh) return;
-      const meshMaterials = Array.isArray(object.material) ? object.material : [object.material];
-      meshMaterials.filter(Boolean).forEach((material) => materials.add(material));
-    });
-    const list = [...materials];
-    const standard = list.filter((material) => material.isMeshStandardMaterial || material.isMeshPhysicalMaterial);
-    const litEmissive = standard.filter((material) => (
-      material.emissiveIntensity * Math.max(material.emissive.r, material.emissive.g, material.emissive.b) > 0.01
-    ));
-    const average = (key) => standard.length
-      ? standard.reduce((sum, material) => sum + (Number(material[key]) || 0), 0) / standard.length
-      : 0;
-    return [
-      `${list.length} mat`,
-      `std ${standard.length}`,
-      `rough ${average('roughness').toFixed(2)}`,
-      `metal ${average('metalness').toFixed(2)}`,
-      `map ${list.filter((material) => material.map).length}`,
-      `normal ${list.filter((material) => material.normalMap).length}`,
-      `emissive ${litEmissive.length}`,
-    ].join(' · ');
-  };
   const captureLightingSnapshot = (elapsedMs = null) => {
     const lights = [];
     const materials = new Set();
@@ -549,7 +521,6 @@ function createDayNightController(scene, activeRenderer, landmarks, activeWater)
         `heap ${jsHeap}`,
         elapsedMs === null ? '' : `${Math.round(elapsedMs)}ms`,
       ].filter(Boolean).join(' · '),
-      temple: inspectTempleMaterials(),
     };
   };
   const emitLightingSnapshot = (moment, elapsedMs = null) => {

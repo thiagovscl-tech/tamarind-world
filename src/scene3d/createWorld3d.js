@@ -13,7 +13,6 @@ const TREE_TYPE_A_URL = '/artwork/models/tree_type_a.web.glb?v=9143bdc0ab85';
 const TREE_TYPE_B_URL = '/artwork/models/tree_type_b.web.glb?v=46ae11f15a0b';
 const TREE_LIGHT_CLUSTER_URL = '/artwork/models/tree_light_cluster.web.glb?v=d19829a2f15b';
 const TREE_TECNOMAGO_URL = '/artwork/models/tree_tecnomago.web.glb?v=3234ed2e0299';
-const TEMPLE_URL = '/artwork/models/templo.web.glb?v=2ae217c2250a';
 const SETTLEMENT_HOUSE_URL = '/artwork/models/casasite.web.glb?v=aa864a626482';
 const BACKGROUND_CASTLE_URL = '/artwork/models/roman_temple.web.glb?v=f17717b7ac30';
 const RIGGED_GOAT_URL = '/artwork/models/bode_rigged.web.glb?v=1233e20fcabe';
@@ -1458,65 +1457,6 @@ async function loadAppsBasilica(terrain) {
   return basilicaGroup;
 }
 
-async function loadOrientalPagoda(terrain) {
-  const gltf = await loadGlbOnce(TEMPLE_URL, 'templo oriental');
-  const source = gltf.scene;
-  source.updateMatrixWorld(true);
-
-  const bounds = new THREE.Box3().setFromObject(source);
-  const size = bounds.getSize(new THREE.Vector3());
-  const center = bounds.getCenter(new THREE.Vector3());
-  const targetWidth = 12;
-  const uniformScale = targetWidth / Math.max(size.x, size.z, 0.0001);
-  const target = new THREE.Vector3(-18, 0, 52);
-  const yaw = 0;
-  const halfBaseX = size.x * uniformScale * 0.47;
-  const halfBaseZ = size.z * uniformScale * 0.47;
-  const localFootprintSamples = [
-    [0, 0], [0, -halfBaseZ], [0, halfBaseZ],
-    [-halfBaseX, 0], [halfBaseX, 0],
-    [-halfBaseX, -halfBaseZ], [halfBaseX, -halfBaseZ],
-    [-halfBaseX, halfBaseZ], [halfBaseX, halfBaseZ],
-  ];
-  const footprintSamples = localFootprintSamples.map(([x, z]) => {
-    const offset = new THREE.Vector3(x, 0, z).applyAxisAngle(THREE.Object3D.DEFAULT_UP, yaw);
-    return [offset.x, offset.z];
-  });
-  const supportHeights = footprintSamples
-    .map(([dx, dz]) => terrainHeightAt(terrain, target.x + dx, target.z + dz))
-    .sort((a, b) => a - b);
-  target.y = supportHeights[4];
-
-  const scaledCenter = center.clone().multiplyScalar(uniformScale);
-  scaledCenter.applyAxisAngle(THREE.Object3D.DEFAULT_UP, yaw);
-
-  const templeGroup = new THREE.Group();
-  templeGroup.name = 'OrientalPagoda';
-  templeGroup.scale.setScalar(uniformScale);
-  templeGroup.rotation.y = yaw;
-  templeGroup.position.set(
-    target.x - scaledCenter.x,
-    target.y - bounds.min.y * uniformScale - 0.12,
-    target.z - scaledCenter.z,
-  );
-  templeGroup.add(source);
-
-  source.traverse((object) => {
-    if (!object.isMesh) return;
-    object.castShadow = true;
-    object.receiveShadow = true;
-    object.frustumCulled = true;
-  });
-
-  console.info('[Tamarind] Pagode oriental carregado.', {
-    position: templeGroup.position.toArray(),
-    rotationY: yaw,
-    scale: uniformScale,
-    supportHeights,
-  });
-  return templeGroup;
-}
-
 async function loadInstancedTrees(terrain, _backgroundPlacements = []) {
   const vegetation = new THREE.Group();
   vegetation.name = 'GlbTreeVisualPrototype';
@@ -1718,13 +1658,13 @@ async function loadInstancedTrees(terrain, _backgroundPlacements = []) {
       });
     }
   });
-  const templeCoordinates = [
+  const northernGroveCoordinates = [
     [-31, 47], [-34, 53], [-30, 59], [-26, 65], [-18, 66], [-10, 65], [-6, 59],
     [-5, 50], [-8, 43], [-14, 40], [-23, 40], [-28, 43], [-2, 55], [-22, 67],
   ];
-  const templeRequests = templeCoordinates.map(([x, z], index) => ({
+  const northernGroveRequests = northernGroveCoordinates.map(([x, z], index) => ({
     species: index % 2 === 0 ? lightTreeTwo : lightTreeOne,
-    region: 'temple',
+    region: 'north-grove',
     x,
     z,
     yaw: (index * 2.39996 + 0.35) % (Math.PI * 2),
@@ -1732,7 +1672,7 @@ async function loadInstancedTrees(terrain, _backgroundPlacements = []) {
     tiltX: ((index % 3) - 1) * 0.014,
     tiltZ: ((index % 5) - 2) * 0.009,
   }));
-  const forestRequests = [...castleRequests, ...templeRequests];
+  const forestRequests = [...castleRequests, ...northernGroveRequests];
   forestRequests.forEach((request) => {
     for (const [dx, dz] of searchOffsets) {
       const x = request.x + dx;
@@ -1794,7 +1734,7 @@ async function loadInstancedTrees(terrain, _backgroundPlacements = []) {
     lightweightDrawCalls: lightTreeOne.parts.length + lightTreeTwo.parts.length,
     distribution: {
       castle: placements.filter((tree) => tree.region === 'castle').length,
-      temple: placements.filter((tree) => tree.region === 'temple').length,
+      northernGrove: placements.filter((tree) => tree.region === 'north-grove').length,
       tecnomago: placements.filter((tree) => tree.region === 'tecnomago').length,
     },
     reuse: 'InstancedMesh com geometry/material/texturas compartilhados',
@@ -2992,7 +2932,6 @@ export async function createWorld3d() {
       onPhaseComplete?.('landmarks', getMetrics().landmarksReadyMs);
 
       if (debugMobile) {
-        let pagoda = null;
         let castleResult = null;
         let backgroundCastle = null;
         let settlement = null;
@@ -3007,13 +2946,6 @@ export async function createWorld3d() {
           castleResult = await runWhenIdle(() => loadBackgroundCastle(terrainGroup));
           backgroundCastle = addWorldAsset('castle', castleResult.castle);
           onPhaseComplete?.('debug + castelo', performance.now() - getMetrics().startedAt);
-        }
-
-        if (debugStage >= 2) {
-          primeGlbDownload(TEMPLE_URL, 'templo oriental', 'debug-temple');
-          pagoda = await runWhenIdle(() => loadOrientalPagoda(terrainGroup));
-          addWorldAsset('pagoda', pagoda);
-          onPhaseComplete?.('debug + templo', performance.now() - getMetrics().startedAt);
         }
 
         if (debugStage >= 3) {
@@ -3041,7 +2973,6 @@ export async function createWorld3d() {
             tecnomagoHouse,
             architectureHouse,
             appsBasilica,
-            pagoda,
             backgroundCastle,
           ].filter(Boolean);
           settlement?.traverse((object) => {
@@ -3094,7 +3025,6 @@ export async function createWorld3d() {
       console.time('[Tamarind] fase 3 — mundo habitado');
       // Network work overlaps inside this phase while each parse/integration is
       // yielded separately. Later phases never block the first rendered frame.
-      primeGlbDownload(TEMPLE_URL, 'templo oriental', 'inhabited');
       primeGlbDownload(BACKGROUND_CASTLE_URL, 'castelo ao fundo', 'inhabited');
       primeGlbDownload(SETTLEMENT_HOUSE_URL, 'casas da vila', 'inhabited');
       primeGlbDownload(TREE_TYPE_A_URL, 'árvore Tipo A', 'inhabited');
@@ -3109,8 +3039,7 @@ export async function createWorld3d() {
       primeGlbDownload(WIZARD_NPC_URL, 'mago NPC', 'inhabited');
       primeGlbDownload(CAMPFIRE_URL, 'fogueira do Tecnomago', 'decor');
 
-      const [pagoda, castleResult, settlement, vegetation] = await Promise.all([
-        runWhenIdle(() => loadOrientalPagoda(terrainGroup)),
+      const [castleResult, settlement, vegetation] = await Promise.all([
         runWhenIdle(() => loadBackgroundCastle(terrainGroup)),
         runWhenIdle(() => createMedievalSettlement(terrainGroup, ocean.position.y)),
         runMeasuredRuntimeTask(
@@ -3119,7 +3048,6 @@ export async function createWorld3d() {
           () => loadInstancedTrees(terrainGroup, []),
         ),
       ]);
-      addWorldAsset('pagoda', pagoda);
       const backgroundCastle = addWorldAsset('castle', castleResult.castle);
       addWorldAsset('settlement', settlement);
       addWorldAsset('vegetation', vegetation);
@@ -3141,7 +3069,6 @@ export async function createWorld3d() {
         tecnomagoHouse,
         architectureHouse,
         appsBasilica,
-        pagoda,
         backgroundCastle,
         millPond,
       ];
