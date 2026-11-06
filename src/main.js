@@ -7,6 +7,7 @@ import { updateBearProcedural } from './scene3d/createBearCharacter3d.js';
 
 const debugParams = new URLSearchParams(window.location.search);
 const mobileDebugEnabled = debugParams.get('debugMobile') === '1';
+const loadAuditEnabled = debugParams.get('debugLoad') === '1' || debugParams.has('perf');
 let mobileDebugStage = 8;
 let mobileDebugLightStage = 6;
 let attachMobileDebug = () => {};
@@ -1120,20 +1121,38 @@ async function initializeScene() {
       tamarindMetrics.duplicateRequests = Object.entries(resourceCounts)
         .filter(([, count]) => count > 1)
         .map(([url, count]) => ({ url, count }));
-      console.table(tamarindMetrics.assets.map((asset) => ({
+      const sortedAssetMetrics = [...tamarindMetrics.assets]
+        .sort((left, right) => (right.totalMs || 0) - (left.totalMs || 0));
+      const loadAuditRows = sortedAssetMetrics.map((asset) => ({
         asset: asset.asset,
         phase: asset.phase,
         sizeMB: (asset.bytes / 1024 / 1024).toFixed(2),
+        queueWaitMs: Math.round(asset.queueWaitMs || 0),
         downloadMs: Math.round(asset.downloadMs),
         parseMs: Math.round(asset.parseMs),
+        integrationMs: Math.round(asset.integrationMs || 0),
         totalMs: Math.round(asset.totalMs),
-      })));
-      console.info('[Tamarind] Métricas de carregamento.', JSON.stringify(tamarindMetrics));
-      if (new URLSearchParams(window.location.search).has('perf')) {
+      }));
+      tamarindMetrics.sortedAssetMetrics = loadAuditRows;
+      tamarindMetrics.criticalPath = {
+        visualWorldBlocker: sortedAssetMetrics
+          .filter((asset) => ['inhabited', 'inhabited-high'].includes(asset.phase))
+          .sort((left, right) => (right.integrationEndMs || right.totalMs || 0)
+            - (left.integrationEndMs || left.totalMs || 0))[0]?.asset ?? null,
+        technicalCompletionBlocker: sortedAssetMetrics[0]?.asset ?? null,
+      };
+      window.__tamarindLoadAudit = tamarindMetrics;
+      if (loadAuditEnabled) {
+        console.table(loadAuditRows);
+        console.info('[Tamarind] Caminho crítico.', tamarindMetrics.criticalPath);
+        console.info('[Tamarind] Métricas de carregamento.', JSON.stringify(tamarindMetrics));
+      }
+      if (debugParams.has('perf')) {
         const diagnostic = {
           firstRenderMs: Math.round(tamarindMetrics.firstRenderMs),
           islandVisibleMs: Math.round(tamarindMetrics.islandVisibleMs),
           landmarksReadyMs: Math.round(tamarindMetrics.landmarksReadyMs),
+          visualWorldReadyMs: Math.round(tamarindMetrics.visualWorldReadyMs || 0),
           inhabitedReadyMs: Math.round(tamarindMetrics.inhabitedReadyMs),
           worldCompleteMs: Math.round(tamarindMetrics.worldCompleteMs),
           navigationTtfbMs: Math.round(tamarindMetrics.navigationTtfbMs || 0),
@@ -1145,11 +1164,21 @@ async function initializeScene() {
           duplicateRequests: tamarindMetrics.duplicateRequests,
           terrainSamplerBuildMs: Math.round(tamarindMetrics.terrainSamplerBuildMs || 0),
           terrainSamplerReadyMs: Math.round(tamarindMetrics.terrainSamplerReadyMs || 0),
-          assets: tamarindMetrics.assets.map((asset) => ({
+          criticalPath: tamarindMetrics.criticalPath,
+          assets: sortedAssetMetrics.map((asset) => ({
             asset: asset.asset,
+            url: asset.url,
+            phase: asset.phase,
             bytes: asset.bytes,
+            requestStartMs: Math.round(asset.requestStartMs || asset.startedAtMs || 0),
+            downloadEndMs: Math.round(asset.downloadEndMs || 0),
+            parseStartMs: Math.round(asset.parseStartMs || 0),
+            parseEndMs: Math.round(asset.parseEndMs || 0),
+            integrationEndMs: Math.round(asset.integrationEndMs || 0),
+            queueWaitMs: Math.round(asset.queueWaitMs || 0),
             downloadMs: Math.round(asset.downloadMs),
             parseMs: Math.round(asset.parseMs),
+            integrationMs: Math.round(asset.integrationMs || 0),
             totalMs: Math.round(asset.totalMs),
           })),
         };
@@ -1157,6 +1186,7 @@ async function initializeScene() {
           'Tamarind Perf',
           `first=${Math.round(tamarindMetrics.firstRenderMs)}ms`,
           `landmarks=${Math.round(tamarindMetrics.landmarksReadyMs)}ms`,
+          `visual=${Math.round(tamarindMetrics.visualWorldReadyMs || 0)}ms`,
           `world=${Math.round(tamarindMetrics.worldCompleteMs)}ms`,
           `glb=${tamarindMetrics.glbRequestCount}`,
         ].join(' | ');

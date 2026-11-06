@@ -25,6 +25,13 @@ const TARGET_HORIZONTAL_SIZE = 150;
 const gltfLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const glbDownloads = new Map();
 const gltfRequests = new Map();
+const runtimeParams = new URLSearchParams(window.location.search);
+const loadAuditEnabled = runtimeParams.get('debugLoad') === '1' || runtimeParams.has('perf');
+const debugGoatEnabled = runtimeParams.get('debugGoat') === '1';
+
+function findAssetMetric(url) {
+  return getMetrics().assets.find((entry) => entry.url === url);
+}
 
 function emitAssetDebug(status, detail) {
   if (new URLSearchParams(window.location.search).get('debugMobile') !== '1') return;
@@ -43,19 +50,30 @@ function getMetrics() {
 
 function primeGlbDownload(url, label, phase = 'secondary') {
   if (!glbDownloads.has(url)) {
+    const queuedAt = performance.now();
     const metric = {
       asset: label,
       url,
       phase,
-      startedAtMs: performance.now() - getMetrics().startedAt,
+      kind: 'glb',
+      startedAtMs: queuedAt - getMetrics().startedAt,
+      requestStartMs: 0,
+      downloadEndMs: 0,
+      parseStartMs: 0,
+      parseEndMs: 0,
+      integrationEndMs: 0,
       bytes: 0,
+      queueWaitMs: 0,
       downloadMs: 0,
       parseMs: 0,
+      integrationMs: 0,
       totalMs: 0,
     };
     getMetrics().assets.push(metric);
     emitAssetDebug('start', { label, url, phase });
     const startedAt = performance.now();
+    metric.requestStartMs = startedAt - getMetrics().startedAt;
+    metric.queueWaitMs = startedAt - queuedAt;
     const request = fetch(url, { cache: 'force-cache' })
       .then((response) => {
         if (!response.ok) throw new Error(`${response.status} ${response.statusText}: ${url}`);
@@ -63,6 +81,7 @@ function primeGlbDownload(url, label, phase = 'secondary') {
       })
       .then((buffer) => {
         metric.downloadMs = performance.now() - startedAt;
+        metric.downloadEndMs = performance.now() - getMetrics().startedAt;
         metric.bytes = buffer.byteLength;
         return { buffer, metric };
       })
@@ -79,23 +98,36 @@ function primeGlbDownload(url, label, phase = 'secondary') {
 
 function loadGlbOnce(url, label, phase = 'secondary') {
   if (!gltfRequests.has(url)) {
+    const parseQueuedAt = performance.now();
     const timerLabel = `[Tamarind] GLB ${label}`;
-    console.time(timerLabel);
+    if (loadAuditEnabled) console.time(timerLabel);
     const request = primeGlbDownload(url, label, phase)
       .then(async ({ buffer, metric }) => {
         const parseStartedAt = performance.now();
+        const downloadEndedAt = getMetrics().startedAt + metric.downloadEndMs;
+        metric.queueWaitMs += Math.max(
+          0,
+          parseStartedAt - Math.max(downloadEndedAt, parseQueuedAt),
+        );
+        metric.parseStartMs = parseStartedAt - getMetrics().startedAt;
         const resourcePath = url.slice(0, url.lastIndexOf('/') + 1);
         const gltf = await gltfLoader.parseAsync(buffer, resourcePath);
-        metric.parseMs = performance.now() - parseStartedAt;
-        metric.totalMs = performance.now() - (getMetrics().startedAt + metric.startedAtMs);
-        console.info('[Tamarind] Asset carregado.', {
-          asset: label,
-          phase,
-          sizeMB: (metric.bytes / 1024 / 1024).toFixed(2),
-          downloadMs: Math.round(metric.downloadMs),
-          parseMs: Math.round(metric.parseMs),
-          totalMs: Math.round(metric.totalMs),
-        });
+        const parseEndedAt = performance.now();
+        metric.parseMs = parseEndedAt - parseStartedAt;
+        metric.parseEndMs = parseEndedAt - getMetrics().startedAt;
+        metric.totalMs = metric.parseEndMs;
+        gltf.scene.userData.tamarindAssetMetricUrl = url;
+        if (loadAuditEnabled) {
+          console.info('[Tamarind] Asset carregado.', {
+            asset: label,
+            phase,
+            sizeMB: (metric.bytes / 1024 / 1024).toFixed(2),
+            queueWaitMs: Math.round(metric.queueWaitMs),
+            downloadMs: Math.round(metric.downloadMs),
+            parseMs: Math.round(metric.parseMs),
+            totalMs: Math.round(metric.totalMs),
+          });
+        }
         emitAssetDebug('success', {
           label,
           url,
@@ -105,7 +137,9 @@ function loadGlbOnce(url, label, phase = 'secondary') {
         });
         return gltf;
       })
-      .finally(() => console.timeEnd(timerLabel))
+      .finally(() => {
+        if (loadAuditEnabled) console.timeEnd(timerLabel);
+      })
       .catch((error) => {
         gltfRequests.delete(url);
         console.error('[Tamarind] Falha ao carregar GLB.', { asset: label, url, phase, error });
@@ -125,6 +159,34 @@ function runWhenIdle(task) {
     } else {
       window.setTimeout(run, 0);
     }
+  });
+}
+
+function runMeasuredRuntimeTask(asset, phase, task) {
+  const queuedAt = performance.now();
+  const metric = {
+    asset,
+    url: `runtime:${asset}`,
+    phase,
+    kind: 'runtime',
+    startedAtMs: queuedAt - getMetrics().startedAt,
+    bytes: 0,
+    queueWaitMs: 0,
+    downloadMs: 0,
+    parseMs: 0,
+    integrationMs: 0,
+    totalMs: 0,
+  };
+  getMetrics().assets.push(metric);
+  return runWhenIdle(async () => {
+    const startedAt = performance.now();
+    metric.queueWaitMs = startedAt - queuedAt;
+    const result = await task();
+    const finishedAt = performance.now();
+    metric.integrationMs = finishedAt - startedAt;
+    metric.integrationEndMs = finishedAt - getMetrics().startedAt;
+    metric.totalMs = metric.integrationEndMs;
+    return result;
   });
 }
 
@@ -340,7 +402,7 @@ async function loadRiggedGoat(terrain, { treePlacements = [], avoidObjects = [] 
     if (object.isBone) {
       bones.push(object.name || '(sem nome)');
       bonesByName.set(object.name, object);
-      console.log('[GOAT BONE]', object.name || '(sem nome)');
+      if (debugGoatEnabled) console.log('[GOAT BONE]', object.name || '(sem nome)');
     }
     if (!object.isMesh) return;
     meshCount += 1;
@@ -492,7 +554,9 @@ async function loadRiggedGoat(terrain, { treePlacements = [], avoidObjects = [] 
     if (movementState === 'pause' && sequenceTime >= pauseEndsAt) {
       movementState = 'walk';
       currentWalkSpeed = walkSpeed * (0.9 + Math.random() * 0.2);
-      console.info(`[GOAT ROUTE] Caminhando para waypoint ${waypointIndex + 1}/${waypoints.length}.`);
+      if (debugGoatEnabled) {
+        console.info(`[GOAT ROUTE] Caminhando para waypoint ${waypointIndex + 1}/${waypoints.length}.`);
+      }
     }
     const shouldWalk = movementState === 'walk';
     walkWeight = THREE.MathUtils.damp(walkWeight, shouldWalk ? 1 : 0, shouldWalk ? 7 : 5, deltaTime);
@@ -509,10 +573,14 @@ async function loadRiggedGoat(terrain, { treePlacements = [], avoidObjects = [] 
           movementState = 'pause';
           const pauseDuration = 2 + Math.random() * 3;
           pauseEndsAt = sequenceTime + pauseDuration;
-          console.info(`[GOAT ROUTE] Pausa Idle de ${pauseDuration.toFixed(1)}s; próximo waypoint ${waypointIndex + 1}/${waypoints.length}.`);
+          if (debugGoatEnabled) {
+            console.info(`[GOAT ROUTE] Pausa Idle de ${pauseDuration.toFixed(1)}s; próximo waypoint ${waypointIndex + 1}/${waypoints.length}.`);
+          }
         } else {
           currentWalkSpeed = walkSpeed * (0.9 + Math.random() * 0.2);
-          console.info(`[GOAT ROUTE] Seguindo sem pausa para waypoint ${waypointIndex + 1}/${waypoints.length}.`);
+          if (debugGoatEnabled) {
+            console.info(`[GOAT ROUTE] Seguindo sem pausa para waypoint ${waypointIndex + 1}/${waypoints.length}.`);
+          }
         }
       } else {
         walkDirection.copy(toTarget).multiplyScalar(1 / distance);
@@ -577,7 +645,9 @@ async function loadRiggedGoat(terrain, { treePlacements = [], avoidObjects = [] 
     waypoints: waypoints.map((waypoint) => [waypoint.x, waypoint.surface.point.y, waypoint.z]),
     modelForwardYaw,
   };
-  console.info('[GOAT] GLB carregado e assentado.', JSON.stringify(diagnostics));
+  if (debugGoatEnabled) {
+    console.info('[GOAT] GLB carregado e assentado.', JSON.stringify(diagnostics));
+  }
 
   return { goat, updateGoatWalk };
 }
@@ -2864,6 +2934,24 @@ export async function createWorld3d() {
       const notify = (key, object) => onAssetLoaded?.({ key, object, landmarks });
       const addWorldAsset = (key, object) => {
         world.add(object);
+        let metricUrl = object?.userData?.tamarindAssetMetricUrl;
+        if (!metricUrl && object?.traverse) {
+          object.traverse((child) => {
+            if (!metricUrl && child.userData?.tamarindAssetMetricUrl) {
+              metricUrl = child.userData.tamarindAssetMetricUrl;
+            }
+          });
+        }
+        const metric = metricUrl ? findAssetMetric(metricUrl) : null;
+        if (metric) {
+          const integratedAt = performance.now();
+          metric.integrationMs = Math.max(
+            0,
+            integratedAt - (getMetrics().startedAt + metric.parseEndMs),
+          );
+          metric.integrationEndMs = integratedAt - getMetrics().startedAt;
+          metric.totalMs = metric.integrationEndMs;
+        }
         notify(key, object);
         return object;
       };
@@ -3019,26 +3107,35 @@ export async function createWorld3d() {
       primeGlbDownload(TREE_TECNOMAGO_URL, 'árvore estilizada do Tecnomago', 'inhabited');
       primeGlbDownload(RIGGED_GOAT_URL, 'bode', 'inhabited');
       primeGlbDownload(WIZARD_NPC_URL, 'mago NPC', 'inhabited');
-      const [pagoda, castleResult, settlement] = await Promise.all([
+      primeGlbDownload(CAMPFIRE_URL, 'fogueira do Tecnomago', 'decor');
+
+      const [pagoda, castleResult, settlement, vegetation] = await Promise.all([
         runWhenIdle(() => loadOrientalPagoda(terrainGroup)),
         runWhenIdle(() => loadBackgroundCastle(terrainGroup)),
         runWhenIdle(() => createMedievalSettlement(terrainGroup, ocean.position.y)),
+        runMeasuredRuntimeTask(
+          'vegetação arbórea completa',
+          'inhabited-high',
+          () => loadInstancedTrees(terrainGroup, []),
+        ),
       ]);
       addWorldAsset('pagoda', pagoda);
       const backgroundCastle = addWorldAsset('castle', castleResult.castle);
       addWorldAsset('settlement', settlement);
-
-      const vegetation = await runWhenIdle(() => (
-        loadInstancedTrees(terrainGroup, castleResult.treePlacements)
-      ));
       addWorldAsset('vegetation', vegetation);
 
+      getMetrics().visualWorldReadyMs = performance.now() - getMetrics().startedAt;
+      onPhaseComplete?.('visual-world', getMetrics().visualWorldReadyMs);
+
       const [windmills, millPond] = await Promise.all([
-        runWhenIdle(() => createWindmillPair(terrainGroup)),
-        runWhenIdle(() => createProceduralMillPond(terrainGroup)),
+        runMeasuredRuntimeTask('moinhos', 'inhabited-medium', () => createWindmillPair(terrainGroup)),
+        runMeasuredRuntimeTask('brejo procedural', 'inhabited-medium', () => createProceduralMillPond(terrainGroup)),
       ]);
       addWorldAsset('windmills', windmills);
       addWorldAsset('millPond', millPond);
+      console.timeEnd('[Tamarind] fase 3 — mundo habitado');
+      getMetrics().inhabitedReadyMs = performance.now() - getMetrics().startedAt;
+      onPhaseComplete?.('inhabited', getMetrics().inhabitedReadyMs);
 
       const goatAvoidObjects = [
         tecnomagoHouse,
@@ -3054,30 +3151,31 @@ export async function createWorld3d() {
       windmills.traverse((object) => {
         if (object.name === 'MedievalWindmillModel') goatAvoidObjects.push(object);
       });
-      const [goatResult, wizardResult] = await Promise.all([
+      console.time('[Tamarind] fase 4 — acabamento e NPCs');
+      const [goatResult, wizardResult, harbor, coast, campfire] = await Promise.all([
         runWhenIdle(() => loadRiggedGoat(terrainGroup, {
           treePlacements: vegetation.userData.placements,
           avoidObjects: goatAvoidObjects,
         })),
         runWhenIdle(() => loadWizardNpc(terrainGroup, tecnomagoHouse)),
+        runMeasuredRuntimeTask(
+          'porto procedural',
+          'decor-low',
+          () => createHarbor(terrainGroup, ocean.position.y),
+        ),
+        runMeasuredRuntimeTask(
+          'transição costeira',
+          'decor-low',
+          () => createCoastalTransition(terrainGroup, worldBounds, ocean.position.y),
+        ),
+        runWhenIdle(() => loadTecnomagoCampfire(terrainGroup)),
       ]);
       addWorldAsset('goat', goatResult.goat);
       addWorldAsset('wizard', wizardResult.wizard);
-      console.timeEnd('[Tamarind] fase 3 — mundo habitado');
-      getMetrics().inhabitedReadyMs = performance.now() - getMetrics().startedAt;
-      onPhaseComplete?.('inhabited', getMetrics().inhabitedReadyMs);
-
-      console.time('[Tamarind] fase 4 — acabamento costeiro');
-      primeGlbDownload(CAMPFIRE_URL, 'fogueira do Tecnomago', 'decor');
-      const [harbor, coast, campfire] = await Promise.all([
-        runWhenIdle(() => createHarbor(terrainGroup, ocean.position.y)),
-        runWhenIdle(() => createCoastalTransition(terrainGroup, worldBounds, ocean.position.y)),
-        runWhenIdle(() => loadTecnomagoCampfire(terrainGroup)),
-      ]);
       addWorldAsset('harbor', harbor);
       addWorldAsset('coast', coast);
       addWorldAsset('campfire', campfire);
-      console.timeEnd('[Tamarind] fase 4 — acabamento costeiro');
+      console.timeEnd('[Tamarind] fase 4 — acabamento e NPCs');
       getMetrics().decorReadyMs = performance.now() - getMetrics().startedAt;
       onPhaseComplete?.('decor', getMetrics().decorReadyMs);
 
