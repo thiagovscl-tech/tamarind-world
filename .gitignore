@@ -3,5 +3,6 @@ dist
 .env
 .env.local
 .DS_Store
+.audit-output/
 public/projects/videos-ai/*.mp4
 !public/projects/videos-ai/*.web.mp4

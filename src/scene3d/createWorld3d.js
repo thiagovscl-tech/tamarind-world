@@ -27,6 +27,9 @@ const gltfRequests = new Map();
 const runtimeParams = new URLSearchParams(window.location.search);
 const loadAuditEnabled = runtimeParams.get('debugLoad') === '1' || runtimeParams.has('perf');
 const debugGoatEnabled = runtimeParams.get('debugGoat') === '1';
+const landmarkAuditStage = runtimeParams.has('landmarkStage')
+  ? THREE.MathUtils.clamp(Number(runtimeParams.get('landmarkStage')) || 0, 0, 3)
+  : null;
 
 function findAssetMetric(url) {
   return getMetrics().assets.find((entry) => entry.url === url);
@@ -47,6 +50,57 @@ function getMetrics() {
   return metrics;
 }
 
+let measuredOperationId = 0;
+
+function beginMeasuredOperation(asset, operation) {
+  if (!loadAuditEnabled) return null;
+  const id = `${operation}-${measuredOperationId += 1}`;
+  const startMs = performance.now();
+  const startMark = `tamarind:${id}:start`;
+  performance.mark(startMark);
+  return { id, asset, operation, startMs, startMark };
+}
+
+function endMeasuredOperation(token) {
+  if (!token) return null;
+  const endMs = performance.now();
+  const endMark = `tamarind:${token.id}:end`;
+  const measureName = `tamarind:${token.asset}:${token.operation}:${token.id}`;
+  performance.mark(endMark);
+  performance.measure(measureName, token.startMark, endMark);
+  const record = {
+    asset: token.asset,
+    operation: token.operation,
+    startMs: token.startMs,
+    endMs,
+    durationMs: endMs - token.startMs,
+  };
+  const metrics = getMetrics();
+  metrics.operations ??= [];
+  metrics.operations.push(record);
+  return record;
+}
+
+function measureSyncOperation(asset, operation, callback) {
+  if (!loadAuditEnabled) return callback();
+  const token = beginMeasuredOperation(asset, operation);
+  try {
+    return callback();
+  } finally {
+    endMeasuredOperation(token);
+  }
+}
+
+async function measureAsyncOperation(asset, operation, callback) {
+  if (!loadAuditEnabled) return callback();
+  const token = beginMeasuredOperation(asset, operation);
+  try {
+    return await callback();
+  } finally {
+    endMeasuredOperation(token);
+  }
+}
+
 function primeGlbDownload(url, label, phase = 'secondary') {
   if (!glbDownloads.has(url)) {
     const queuedAt = performance.now();
@@ -62,6 +116,8 @@ function primeGlbDownload(url, label, phase = 'secondary') {
       parseEndMs: 0,
       integrationEndMs: 0,
       bytes: 0,
+      fetchMs: 0,
+      arrayBufferMs: 0,
       queueWaitMs: 0,
       downloadMs: 0,
       parseMs: 0,
@@ -75,8 +131,13 @@ function primeGlbDownload(url, label, phase = 'secondary') {
     metric.queueWaitMs = startedAt - queuedAt;
     const request = fetch(url, { cache: 'force-cache' })
       .then((response) => {
+        const responseStartedAt = performance.now();
+        metric.fetchMs = responseStartedAt - startedAt;
         if (!response.ok) throw new Error(`${response.status} ${response.statusText}: ${url}`);
-        return response.arrayBuffer();
+        return response.arrayBuffer().then((buffer) => {
+          metric.arrayBufferMs = performance.now() - responseStartedAt;
+          return buffer;
+        });
       })
       .then((buffer) => {
         metric.downloadMs = performance.now() - startedAt;
@@ -110,7 +171,9 @@ function loadGlbOnce(url, label, phase = 'secondary') {
         );
         metric.parseStartMs = parseStartedAt - getMetrics().startedAt;
         const resourcePath = url.slice(0, url.lastIndexOf('/') + 1);
-        const gltf = await gltfLoader.parseAsync(buffer, resourcePath);
+        const gltf = await measureAsyncOperation(label, 'GLTF parse', () => (
+          gltfLoader.parseAsync(buffer, resourcePath)
+        ));
         const parseEndedAt = performance.now();
         metric.parseMs = parseEndedAt - parseStartedAt;
         metric.parseEndMs = parseEndedAt - getMetrics().startedAt;
@@ -180,7 +243,7 @@ function runMeasuredRuntimeTask(asset, phase, task) {
   return runWhenIdle(async () => {
     const startedAt = performance.now();
     metric.queueWaitMs = startedAt - queuedAt;
-    const result = await task();
+    const result = await measureAsyncOperation(asset, 'runtime integration', task);
     const finishedAt = performance.now();
     metric.integrationMs = finishedAt - startedAt;
     metric.integrationEndMs = finishedAt - getMetrics().startedAt;
@@ -300,11 +363,16 @@ function createTerrainSurfaceSampler(terrain, cellSize = 3) {
 }
 
 async function loadMasterTerrain() {
+  const totalOperation = beginMeasuredOperation('ilha/base', 'loadMasterTerrain total');
   const gltf = await loadGlbOnce(TERRAIN_URL, 'ilha/base', 'critical');
   const source = gltf.scene;
-  source.updateMatrixWorld(true);
+  measureSyncOperation('ilha/base', 'updateMatrixWorld source', () => source.updateMatrixWorld(true));
 
-  const sourceBounds = new THREE.Box3().setFromObject(source);
+  const sourceBounds = measureSyncOperation(
+    'ilha/base',
+    'Box3 source',
+    () => new THREE.Box3().setFromObject(source),
+  );
   const sourceSize = sourceBounds.getSize(new THREE.Vector3());
   const sourceCenter = sourceBounds.getCenter(new THREE.Vector3());
   const horizontalSize = Math.max(sourceSize.x, sourceSize.z);
@@ -320,15 +388,21 @@ async function loadMasterTerrain() {
   );
   terrainGroup.add(source);
 
-  source.traverse((object) => {
-    if (!object.isMesh) return;
-    object.castShadow = false;
-    object.receiveShadow = true;
-    object.frustumCulled = true;
+  measureSyncOperation('ilha/base', 'material setup traverse', () => {
+    source.traverse((object) => {
+      if (!object.isMesh) return;
+      object.castShadow = false;
+      object.receiveShadow = true;
+      object.frustumCulled = true;
+    });
   });
 
-  terrainGroup.updateMatrixWorld(true);
-  const worldBounds = new THREE.Box3().setFromObject(terrainGroup);
+  measureSyncOperation('ilha/base', 'updateMatrixWorld terrain', () => terrainGroup.updateMatrixWorld(true));
+  const worldBounds = measureSyncOperation(
+    'ilha/base',
+    'Box3 terrain',
+    () => new THREE.Box3().setFromObject(terrainGroup),
+  );
   const worldSize = worldBounds.getSize(new THREE.Vector3());
   console.info('[Tamarind] Master terrain carregado.', {
     size: worldSize.toArray(),
@@ -339,6 +413,7 @@ async function loadMasterTerrain() {
     triangles: 266236,
   });
 
+  endMeasuredOperation(totalOperation);
   return { terrainGroup, worldBounds, worldSize };
 }
 
@@ -1248,11 +1323,16 @@ async function createCoastalTransition(terrain, worldBounds, oceanY) {
 }
 
 async function loadTecnomagoHouse(terrain) {
+  const totalOperation = beginMeasuredOperation('Casa do Tecnomago', 'landmark integration total');
   const gltf = await loadGlbOnce(TECNOMAGO_HOUSE_URL, 'Casa do Tecnomago');
   const source = gltf.scene;
-  source.updateMatrixWorld(true);
+  measureSyncOperation('Casa do Tecnomago', 'updateMatrixWorld', () => source.updateMatrixWorld(true));
 
-  const bounds = new THREE.Box3().setFromObject(source);
+  const bounds = measureSyncOperation(
+    'Casa do Tecnomago',
+    'Box3 setFromObject',
+    () => new THREE.Box3().setFromObject(source),
+  );
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
   const targetWidth = 19.490625;
@@ -1284,11 +1364,13 @@ async function loadTecnomagoHouse(terrain) {
   );
   houseGroup.add(source);
 
-  source.traverse((object) => {
-    if (!object.isMesh) return;
-    object.castShadow = true;
-    object.receiveShadow = true;
-    object.frustumCulled = true;
+  measureSyncOperation('Casa do Tecnomago', 'material setup traverse', () => {
+    source.traverse((object) => {
+      if (!object.isMesh) return;
+      object.castShadow = true;
+      object.receiveShadow = true;
+      object.frustumCulled = true;
+    });
   });
 
   const accessGroup = new THREE.Group();
@@ -1325,15 +1407,21 @@ async function loadTecnomagoHouse(terrain) {
     supportHeights: footprintSupport.heights,
     triangles: 639968,
   }));
+  endMeasuredOperation(totalOperation);
   return houseGroup;
 }
 
 async function loadArchitectureHouse(terrain) {
+  const totalOperation = beginMeasuredOperation('Coliseu 3D/Arquitetura', 'landmark integration total');
   const gltf = await loadGlbOnce(ARCHITECTURE_HOUSE_URL, 'Coliseu 3D/Arquitetura');
   const source = gltf.scene;
-  source.updateMatrixWorld(true);
+  measureSyncOperation('Coliseu 3D/Arquitetura', 'updateMatrixWorld', () => source.updateMatrixWorld(true));
 
-  const bounds = new THREE.Box3().setFromObject(source);
+  const bounds = measureSyncOperation(
+    'Coliseu 3D/Arquitetura',
+    'Box3 setFromObject',
+    () => new THREE.Box3().setFromObject(source),
+  );
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
   const targetWidth = 15.5;
@@ -1376,11 +1464,13 @@ async function loadArchitectureHouse(terrain) {
   );
   architectureGroup.add(source);
 
-  source.traverse((object) => {
-    if (!object.isMesh) return;
-    object.castShadow = true;
-    object.receiveShadow = true;
-    object.frustumCulled = true;
+  measureSyncOperation('Coliseu 3D/Arquitetura', 'material setup traverse', () => {
+    source.traverse((object) => {
+      if (!object.isMesh) return;
+      object.castShadow = true;
+      object.receiveShadow = true;
+      object.frustumCulled = true;
+    });
   });
 
   console.info('[Tamarind] Casa 3D/Arquitetura carregada.', {
@@ -1390,15 +1480,21 @@ async function loadArchitectureHouse(terrain) {
     supportHeights,
     triangles: 498604,
   });
+  endMeasuredOperation(totalOperation);
   return architectureGroup;
 }
 
 async function loadAppsBasilica(terrain) {
+  const totalOperation = beginMeasuredOperation('Basílica Apps', 'landmark integration total');
   const gltf = await loadGlbOnce(APPS_BASILICA_URL, 'Basílica Apps');
   const source = gltf.scene;
-  source.updateMatrixWorld(true);
+  measureSyncOperation('Basílica Apps', 'updateMatrixWorld', () => source.updateMatrixWorld(true));
 
-  const bounds = new THREE.Box3().setFromObject(source);
+  const bounds = measureSyncOperation(
+    'Basílica Apps',
+    'Box3 setFromObject',
+    () => new THREE.Box3().setFromObject(source),
+  );
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
   const targetWidth = 27;
@@ -1441,11 +1537,13 @@ async function loadAppsBasilica(terrain) {
   );
   basilicaGroup.add(source);
 
-  source.traverse((object) => {
-    if (!object.isMesh) return;
-    object.castShadow = true;
-    object.receiveShadow = true;
-    object.frustumCulled = true;
+  measureSyncOperation('Basílica Apps', 'material setup traverse', () => {
+    source.traverse((object) => {
+      if (!object.isMesh) return;
+      object.castShadow = true;
+      object.receiveShadow = true;
+      object.frustumCulled = true;
+    });
   });
 
   console.info('[Tamarind] Basílica Apps carregada.', {
@@ -1454,6 +1552,7 @@ async function loadAppsBasilica(terrain) {
     scale: uniformScale,
     supportHeights,
   });
+  endMeasuredOperation(totalOperation);
   return basilicaGroup;
 }
 
@@ -2898,7 +2997,11 @@ export async function createWorld3d() {
 
       const samplerStartedAt = performance.now();
       terrainGroup.userData.surfaceSampler = await runWhenIdle(() => (
-        createTerrainSurfaceSampler(terrainGroup)
+        measureSyncOperation(
+          'ilha/base',
+          'surface sampler build',
+          () => createTerrainSurfaceSampler(terrainGroup),
+        )
       ));
       getMetrics().terrainSamplerReadyMs = performance.now() - getMetrics().startedAt;
       getMetrics().terrainSamplerBuildMs = performance.now() - samplerStartedAt;
@@ -2911,25 +3014,64 @@ export async function createWorld3d() {
       console.time('[Tamarind] fase 2 — landmarks principais');
       // The critical frame is already visible. Start the three independent
       // landmarks together so one parse/integration never blocks the next.
-      const [tecnomagoHouse, appsBasilica, architectureHouse] = await Promise.all([
-        runWhenIdle(() => loadTecnomagoHouse(terrainGroup)),
-        runWhenIdle(() => loadAppsBasilica(terrainGroup)),
-        runWhenIdle(() => loadArchitectureHouse(terrainGroup)),
-      ]);
-      landmarks.tecnomago = tecnomagoHouse;
-      addWorldAsset('tecnomago', tecnomagoHouse);
-      if (tecnomagoHouse.userData.entranceAccess) {
+      let tecnomagoHouse = null;
+      let appsBasilica = null;
+      let architectureHouse = null;
+      if (landmarkAuditStage === null) {
+        [tecnomagoHouse, appsBasilica, architectureHouse] = await Promise.all([
+          runWhenIdle(() => loadTecnomagoHouse(terrainGroup)),
+          runWhenIdle(() => loadAppsBasilica(terrainGroup)),
+          runWhenIdle(() => loadArchitectureHouse(terrainGroup)),
+        ]);
+      } else {
+        if (landmarkAuditStage >= 1) {
+          tecnomagoHouse = await runWhenIdle(() => loadTecnomagoHouse(terrainGroup));
+        }
+        if (landmarkAuditStage >= 2) {
+          appsBasilica = await runWhenIdle(() => loadAppsBasilica(terrainGroup));
+        }
+        if (landmarkAuditStage >= 3) {
+          architectureHouse = await runWhenIdle(() => loadArchitectureHouse(terrainGroup));
+        }
+      }
+      if (tecnomagoHouse) {
+        landmarks.tecnomago = tecnomagoHouse;
+        addWorldAsset('tecnomago', tecnomagoHouse);
+      }
+      if (tecnomagoHouse?.userData.entranceAccess) {
         world.add(tecnomagoHouse.userData.entranceAccess);
       }
 
-      landmarks.apps = appsBasilica;
-      addWorldAsset('apps', appsBasilica);
+      if (appsBasilica) {
+        landmarks.apps = appsBasilica;
+        addWorldAsset('apps', appsBasilica);
+      }
 
-      landmarks.architecture = architectureHouse;
-      addWorldAsset('architecture', architectureHouse);
+      if (architectureHouse) {
+        landmarks.architecture = architectureHouse;
+        addWorldAsset('architecture', architectureHouse);
+      }
       console.timeEnd('[Tamarind] fase 2 — landmarks principais');
       getMetrics().landmarksReadyMs = performance.now() - getMetrics().startedAt;
       onPhaseComplete?.('landmarks', getMetrics().landmarksReadyMs);
+
+      if (landmarkAuditStage !== null) {
+        getMetrics().landmarkAuditStage = landmarkAuditStage;
+        return {
+          harbor: null,
+          coast: null,
+          campfire: null,
+          millPond: null,
+          windmills: null,
+          settlement: null,
+          vegetation: null,
+          goat: null,
+          updateGoatWalk: null,
+          wizard: null,
+          updateWizardNpc: null,
+          landmarks,
+        };
+      }
 
       if (debugMobile) {
         let castleResult = null;
