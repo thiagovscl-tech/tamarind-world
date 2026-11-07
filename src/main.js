@@ -259,8 +259,9 @@ const AI_VIDEO_CATEGORIES = {
   memoriasSinteticas: {
     label: 'Memórias Reais',
     videos: [
-      { id: 'em-alta-carvalhaum', title: 'Carvalho Hosken SA imóveis', file: 'emAltaCarvalhaum.web.mp4', poster: 'emAltaCarvalhaum.webp', duration: '00:26' },
+      { id: 'oscar-niemeyer-mac', title: 'Oscar Niemeyer - O começo do MAC', file: 'Memórias Reais/Oscar Niemeyer - O começo do MAC.mp4', poster: 'oscar-niemeyer-mac.webp', duration: '01:02' },
       { id: 'bibi-garrafinhas', title: 'BIBI Garrafinhas', file: 'Memórias Reais/BIBI -Garrafinhas.mp4', poster: 'bibi-garrafinhas.webp', duration: '00:03' },
+      { id: 'em-alta-carvalhaum', title: 'Carvalho Hosken SA imóveis', file: 'emAltaCarvalhaum.web.mp4', poster: 'emAltaCarvalhaum.webp', duration: '00:26' },
       { id: 'doritos', title: 'DORITOS', file: 'Memórias Reais/DORITOS.mp4', poster: 'doritos.webp', duration: '00:17' },
       { id: 'vans', title: 'VANS', file: 'Memórias Reais/VANS.mp4', poster: 'vans.webp', duration: '00:27' },
     ],
