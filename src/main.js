@@ -245,7 +245,7 @@ const LANDMARK_EXPERIENCES = {
 
 const AI_VIDEO_CATEGORIES = {
   mundosImaginados: {
-    label: 'Mundos Imaginados',
+    label: 'Memórias Imaginadas',
     videos: [
       { id: 'bikefilme', title: 'BIKE FILME', file: 'BIKEFILME.web.mp4', poster: 'BIKEFILME.webp', duration: '00:30' },
       { id: 'new-balance-boneco', title: 'NEW BALANCE BONECO', file: 'NEWBALANCEBONECO.web.mp4', poster: 'NEWBALANCEBONECO.webp', duration: '00:15' },
@@ -260,6 +260,9 @@ const AI_VIDEO_CATEGORIES = {
     label: 'Memórias Reais',
     videos: [
       { id: 'em-alta-carvalhaum', title: 'Carvalho Hosken SA imóveis', file: 'emAltaCarvalhaum.web.mp4', poster: 'emAltaCarvalhaum.webp', duration: '00:26' },
+      { id: 'bibi-garrafinhas', title: 'BIBI Garrafinhas', file: 'Memórias Reais/BIBI -Garrafinhas.mp4', poster: 'bibi-garrafinhas.webp', duration: '00:03' },
+      { id: 'doritos', title: 'DORITOS', file: 'Memórias Reais/DORITOS.mp4', poster: 'doritos.webp', duration: '00:17' },
+      { id: 'vans', title: 'VANS', file: 'Memórias Reais/VANS.mp4', poster: 'vans.webp', duration: '00:27' },
     ],
   },
   oraculo: { label: 'Oráculo', videos: [] },
@@ -270,7 +273,8 @@ let activeAiVideoElement = null;
 let aiVideoLibraryReady = false;
 
 function getAiVideoUrl(video) {
-  return `/projects/videos-ai/${encodeURIComponent(video.file)}`;
+  const encodedPath = video.file.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+  return `/projects/videos-ai/${encodedPath}`;
 }
 
 function getAiPosterUrl(video) {
