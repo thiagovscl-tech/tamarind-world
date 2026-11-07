@@ -235,11 +235,6 @@ const LANDMARK_EXPERIENCES = {
     href: '#3d-arquitetura',
     focus: { distanceFactor: 2.28, minDistance: 25, maxDistance: 60, heightRatio: 0.64, lateralShift: 0.2 },
     mobileFocus: { distanceFactor: 2.7, minDistance: 33, maxDistance: 72, heightRatio: 0.7 },
-    projects: [
-      { title: 'Habitat Contemporâneo', category: 'Arquitetura · Visualização', href: '#projeto-habitat', thumbnail: 'project-card__thumbnail--architecture-one' },
-      { title: 'Cidade Suspensa', category: 'Blender · Ambiente 3D', href: '#projeto-cidade-suspensa', thumbnail: 'project-card__thumbnail--architecture-two' },
-      { title: 'Pavilhão Virtual', category: 'Unreal · Experiência espacial', href: '#projeto-pavilhao', thumbnail: 'project-card__thumbnail--architecture-three' },
-    ],
   },
 };
 
@@ -269,16 +264,33 @@ const AI_VIDEO_CATEGORIES = {
   oraculo: { label: 'Oráculo', videos: [] },
 };
 
+const ARCHITECTURE_VIDEO_CATEGORY = {
+  label: '3D / Arquitetura',
+  mediaLabel: 'Vídeo 3D',
+  videos: [
+    { id: 'animais-gelados', title: 'Animais Gelados', file: 'Animais gelados.mp4', duration: '00:17' },
+    { id: 'exposicao-macacos-de-gelo', title: 'Exposição - Macacos de Gelo', file: 'Exposição - Macacos de gelo.mp4', duration: '00:13' },
+    { id: 'fornigueiro', title: 'Fornigueiro', file: 'Fornigueiro.mp4', duration: '00:25' },
+    { id: 'marimbondos', title: 'Marimbondos', file: 'Marimbondos.mp4', duration: '00:13' },
+    { id: 'por-dentro-da-colmeia', title: 'Por Dentro da Colmeia', file: 'Por dentro da Colmeia.mp4', duration: '00:17' },
+  ].map((video) => ({
+    ...video,
+    basePath: '/projects/videos-3D',
+    posterUrl: '/artwork/ui/icone-3d-arquitetura.runtime.webp?v=de1c05a93d3c',
+  })),
+};
+
 let activeAiCategory = 'mundosImaginados';
 let activeAiVideoElement = null;
 let aiVideoLibraryReady = false;
 
 function getAiVideoUrl(video) {
   const encodedPath = video.file.split('/').map((segment) => encodeURIComponent(segment)).join('/');
-  return `/projects/videos-ai/${encodedPath}`;
+  return `${video.basePath || '/projects/videos-ai'}/${encodedPath}`;
 }
 
 function getAiPosterUrl(video) {
+  if (video.posterUrl) return video.posterUrl;
   return `/projects/videos-ai/posters/${encodeURIComponent(video.poster)}`;
 }
 
@@ -324,7 +336,9 @@ function renderAiVideoCategory(categoryKey = activeAiCategory, selectedId = null
     button.setAttribute('aria-selected', active ? 'true' : 'false');
   });
   aiVideoContent.replaceChildren();
-  const category = AI_VIDEO_CATEGORIES[categoryKey];
+  const category = categoryKey === 'architecture'
+    ? ARCHITECTURE_VIDEO_CATEGORY
+    : AI_VIDEO_CATEGORIES[categoryKey];
   if (!category?.videos.length) {
     const empty = document.createElement('div');
     empty.className = 'ai-video-empty';
@@ -355,11 +369,12 @@ function renderAiVideoCategory(categoryKey = activeAiCategory, selectedId = null
   }
   const details = document.createElement('div');
   details.className = 'ai-video-featured__details';
+  const mediaLabel = category.mediaLabel || 'Vídeo IA';
   details.innerHTML = `
     <p class="ai-video-eyebrow">${category.label}</p>
     <h3>${selected.title}</h3>
     <p>Vídeo da coleção ${category.label}.</p>
-    <div class="ai-video-tags"><span>Vídeo IA</span><span>${category.label}</span></div>
+    <div class="ai-video-tags"><span>${mediaLabel}</span><span>${category.label}</span></div>
     <small>${selected.duration} <i></i> MP4</small>
   `;
   featured.append(media, details);
@@ -379,7 +394,7 @@ function renderAiVideoCategory(categoryKey = activeAiCategory, selectedId = null
     }));
     const copy = document.createElement('div');
     copy.className = 'ai-video-card__copy';
-    copy.innerHTML = `<div><strong>${video.title}</strong><small>Vídeo IA</small></div><span aria-hidden="true">→</span>`;
+    copy.innerHTML = `<div><strong>${video.title}</strong><small>${mediaLabel}</small></div><span aria-hidden="true">→</span>`;
     card.appendChild(copy);
     grid.appendChild(card);
   });
@@ -916,13 +931,20 @@ async function initializeScene() {
       const config = LANDMARK_EXPERIENCES[landmarkKey];
       if (!config || !projectPanel) return;
       projectPanel.dataset.section = landmarkKey;
-      const isVideoLibrary = landmarkKey === 'tecnomago';
+      const isArchitectureLibrary = landmarkKey === 'architecture';
+      const isVideoLibrary = landmarkKey === 'tecnomago' || isArchitectureLibrary;
       projectPanel.classList.toggle('project-panel--video-library', isVideoLibrary);
       if (projectPanelGeneric) projectPanelGeneric.hidden = isVideoLibrary;
       if (aiVideoLibrary) aiVideoLibrary.hidden = !isVideoLibrary;
+      if (aiVideoLibrary) aiVideoLibrary.setAttribute('aria-label', isArchitectureLibrary ? 'Vídeos 3D' : 'Vídeos de IA');
+      if (aiVideoTabs) aiVideoTabs.hidden = isArchitectureLibrary;
       if (isVideoLibrary) {
-        initializeAiVideoLibrary();
-        renderAiVideoCategory('mundosImaginados');
+        if (isArchitectureLibrary) {
+          renderAiVideoCategory('architecture');
+        } else {
+          initializeAiVideoLibrary();
+          renderAiVideoCategory('mundosImaginados');
+        }
       } else {
         releaseAiVideo();
       }
@@ -932,7 +954,7 @@ async function initializeScene() {
       if (projectPanelDescription) projectPanelDescription.textContent = config.description;
       if (projectPanelExplore) projectPanelExplore.href = config.href;
       projectCards.forEach((card, index) => {
-        const project = config.projects[index];
+        const project = config.projects?.[index];
         if (!project) return;
         card.href = project.href;
         const thumbnail = card.querySelector('.project-card__thumbnail');
