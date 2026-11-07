@@ -7,6 +7,7 @@ import { updateBearProcedural } from './scene3d/createBearCharacter3d.js';
 
 const debugParams = new URLSearchParams(window.location.search);
 const mobileDebugEnabled = debugParams.get('debugMobile') === '1';
+const loadAuditEnabled = debugParams.get('debugLoad') === '1' || debugParams.has('perf');
 let mobileDebugStage = 8;
 let mobileDebugLightStage = 6;
 let attachMobileDebug = () => {};
@@ -28,6 +29,35 @@ const tamarindMetrics = {
   longTasks: [],
 };
 window.__tamarindMetrics = tamarindMetrics;
+
+function recordMainOperation(asset, operation, startMs, endMs) {
+  if (!loadAuditEnabled) return;
+  endMs ??= performance.now();
+  const id = `main-${operation}-${(tamarindMetrics.operations?.length || 0) + 1}`;
+  const startMark = `tamarind:${id}:start`;
+  const endMark = `tamarind:${id}:end`;
+  performance.mark(startMark, { startTime: startMs });
+  performance.mark(endMark, { startTime: endMs });
+  performance.measure(`tamarind:${asset}:${operation}:${id}`, startMark, endMark);
+  tamarindMetrics.operations ??= [];
+  tamarindMetrics.operations.push({
+    asset,
+    operation,
+    startMs,
+    endMs,
+    durationMs: endMs - startMs,
+  });
+}
+
+function measureMainSync(asset, operation, callback) {
+  if (!loadAuditEnabled) return callback();
+  const startMs = performance.now();
+  try {
+    return callback();
+  } finally {
+    recordMainOperation(asset, operation, startMs);
+  }
+}
 
 const navigationEntry = performance.getEntriesByType('navigation')[0];
 if (navigationEntry) {
@@ -66,6 +96,7 @@ const rendererStartedAt = performance.now();
 const renderer = createRenderer(container);
 tamarindMetrics.rendererCreatedMs = performance.now();
 tamarindMetrics.rendererCreationMs = performance.now() - rendererStartedAt;
+recordMainOperation('renderer', 'createRenderer', rendererStartedAt, tamarindMetrics.rendererCreatedMs);
 const camera = createCamera3d(container.clientWidth / container.clientHeight);
 attachMobileDebug({ renderer, camera, container });
 setMobileDebugPhase('carregando ilha/base');
@@ -427,6 +458,7 @@ function createDayNightController(scene, activeRenderer, landmarks, activeWater)
     return false;
   };
   const refresh = () => {
+    const refreshStartedAt = performance.now();
     scene.traverse((object) => {
       if (!object.isMesh) return;
       const isArchitectureMesh = belongsTo(object, landmarks.architecture);
@@ -454,7 +486,6 @@ function createDayNightController(scene, activeRenderer, landmarks, activeWater)
       ['tecnomago', landmarks.tecnomago],
       ['apps', landmarks.apps],
       ['architecture', landmarks.architecture],
-      ['pagoda', scene.getObjectByName('OrientalPagoda')],
       ['castle', scene.getObjectByName('DistantHillCastleGLB')],
     ].filter(([, object]) => Boolean(object));
     for (const [key, landmark] of localLightTargets) {
@@ -480,39 +511,13 @@ function createDayNightController(scene, activeRenderer, landmarks, activeWater)
       scene.add(light);
       localLights.push(light);
     }
+    recordMainOperation('scene', 'dayNightController.refresh', refreshStartedAt);
   };
   refresh();
 
   const colorScratch = new THREE.Color();
   let toggleStartedAt = 0;
   let toggleTarget = null;
-  const inspectTempleMaterials = () => {
-    const temple = scene.getObjectByName('OrientalPagoda');
-    if (!temple) return 'ainda não carregado';
-    const materials = new Set();
-    temple.traverse((object) => {
-      if (!object.isMesh) return;
-      const meshMaterials = Array.isArray(object.material) ? object.material : [object.material];
-      meshMaterials.filter(Boolean).forEach((material) => materials.add(material));
-    });
-    const list = [...materials];
-    const standard = list.filter((material) => material.isMeshStandardMaterial || material.isMeshPhysicalMaterial);
-    const litEmissive = standard.filter((material) => (
-      material.emissiveIntensity * Math.max(material.emissive.r, material.emissive.g, material.emissive.b) > 0.01
-    ));
-    const average = (key) => standard.length
-      ? standard.reduce((sum, material) => sum + (Number(material[key]) || 0), 0) / standard.length
-      : 0;
-    return [
-      `${list.length} mat`,
-      `std ${standard.length}`,
-      `rough ${average('roughness').toFixed(2)}`,
-      `metal ${average('metalness').toFixed(2)}`,
-      `map ${list.filter((material) => material.map).length}`,
-      `normal ${list.filter((material) => material.normalMap).length}`,
-      `emissive ${litEmissive.length}`,
-    ].join(' · ');
-  };
   const captureLightingSnapshot = (elapsedMs = null) => {
     const lights = [];
     const materials = new Set();
@@ -548,7 +553,6 @@ function createDayNightController(scene, activeRenderer, landmarks, activeWater)
         `heap ${jsHeap}`,
         elapsedMs === null ? '' : `${Math.round(elapsedMs)}ms`,
       ].filter(Boolean).join(' · '),
-      temple: inspectTempleMaterials(),
     };
   };
   const emitLightingSnapshot = (moment, elapsedMs = null) => {
@@ -781,6 +785,9 @@ document.querySelector('#recenter').addEventListener('click', () => {
 
 async function initializeScene() {
   try {
+    const createWorldStartedAt = performance.now();
+    const createdWorld = await createWorld3d();
+    recordMainOperation('scene', 'createWorld3d critical setup', createWorldStartedAt);
     const {
       scene,
       bear: loadedBear,
@@ -790,14 +797,19 @@ async function initializeScene() {
       startSecondaryLoad,
       cameraTarget,
       cameraPosition,
-    } = await createWorld3d();
+    } = createdWorld;
     activeScene = scene;
     bear = loadedBear;
     water = loadedWater;
     coast = loadedCoast;
-    dayNightController = createDayNightController(scene, renderer, landmarks, loadedWater);
-    dayNightController.update(nightMix);
+    dayNightController = measureMainSync(
+      'scene',
+      'createDayNightController',
+      () => createDayNightController(scene, renderer, landmarks, loadedWater),
+    );
+    measureMainSync('scene', 'initial dayNight update', () => dayNightController.update(nightMix));
     const refreshLandmarkAnchors = () => {
+      const refreshStartedAt = performance.now();
       landmarkTargets = Object.fromEntries(
         Object.entries(landmarks).map(([key, object]) => {
           const objectBounds = new THREE.Box3().setFromObject(object);
@@ -812,6 +824,7 @@ async function initializeScene() {
           return [key, landmarkWorldPosition.clone()];
         }),
       );
+      recordMainOperation('landmarks', 'refreshLandmarkAnchors', refreshStartedAt);
     };
     refreshLandmarkAnchors();
     camera.userData.baseTarget.set(...cameraTarget);
@@ -830,7 +843,12 @@ async function initializeScene() {
       camera.updateProjectionMatrix();
     }
     camera.lookAt(camera.userData.baseTarget);
-    renderer.render(scene, camera);
+    measureMainSync('renderer', 'first renderer.render', () => renderer.render(scene, camera));
+    recordMainOperation(
+      'bootstrap',
+      'script start to first render wall time',
+      tamarindMetrics.scriptStartedMs,
+    );
     reportMobileAudit('first-render');
     setMobileDebugPhase('first render pronto');
     tamarindMetrics.firstRenderMs = performance.now();
@@ -1058,7 +1076,25 @@ async function initializeScene() {
       coast?.userData?.update?.(elapsed);
       millPond?.userData?.update?.(elapsed);
       campfire?.userData?.update?.(nightMix, elapsed);
+      const renderStartedAt = debugParams.has('perf') ? performance.now() : 0;
       renderer.render(scene, camera);
+      if (renderStartedAt) {
+        const renderFinishedAt = performance.now();
+        const renderDurationMs = renderFinishedAt - renderStartedAt;
+        const shaderProgramCount = renderer.info.programs?.length || 0;
+        const shaderTimeline = tamarindMetrics.shaderProgramTimeline ??= [];
+        if (!shaderTimeline.length || shaderTimeline.at(-1).count !== shaderProgramCount) {
+          shaderTimeline.push({ timeMs: renderFinishedAt, count: shaderProgramCount });
+        }
+        if (renderDurationMs >= 50) {
+          recordMainOperation(
+            'renderer',
+            'animation frame renderer.render',
+            renderStartedAt,
+            renderFinishedAt,
+          );
+        }
+      }
       updateLandmarkNavigation();
 
       performanceFrames += 1;
@@ -1066,6 +1102,7 @@ async function initializeScene() {
       const performanceDuration = performanceNow - performanceSampleStart;
       if (!performanceReported && performanceDuration >= 5000) {
         const fps = (performanceFrames * 1000) / performanceDuration;
+        tamarindMetrics.loadingFps = fps;
         console.info(
           `[Tamarind] Performance moderada: ${fps.toFixed(1)} FPS | `
           + `${renderer.info.render.calls} draw calls | ${renderer.info.render.triangles} triângulos.`,
@@ -1078,6 +1115,60 @@ async function initializeScene() {
     startSecondaryLoad({
       debugMobile: mobileDebugEnabled,
       debugStage: mobileDebugStage,
+      prepareAssetForReveal: async (object, label) => {
+        if (typeof renderer.compileAsync !== 'function') return;
+        const warmupStartedAt = performance.now();
+        const programsBefore = renderer.info.programs?.length || 0;
+        const compileTargets = [];
+        const compiledVariants = new Set();
+        object.traverse((child) => {
+          if (!child.isMesh || !child.material) return;
+          const materials = Array.isArray(child.material) ? child.material : [child.material];
+          materials.filter(Boolean).forEach((material) => {
+            const variantKey = [
+              material.uuid,
+              child.isSkinnedMesh ? 'skin' : 'static',
+              child.geometry?.attributes?.color ? 'color' : 'no-color',
+              child.geometry?.morphAttributes?.position?.length ? 'morph' : 'no-morph',
+            ].join(':');
+            if (compiledVariants.has(variantKey)) return;
+            compiledVariants.add(variantKey);
+            compileTargets.push({ child, material });
+          });
+        });
+        const batchDurations = [];
+        for (let index = 0; index < compileTargets.length; index += 1) {
+          const { child, material } = compileTargets[index];
+          const originalMaterial = child.material;
+          const batchStartedAt = performance.now();
+          child.material = material;
+          try {
+            await renderer.compileAsync(child, camera, scene);
+          } finally {
+            child.material = originalMaterial;
+          }
+          const batchFinishedAt = performance.now();
+          batchDurations.push(batchFinishedAt - batchStartedAt);
+          recordMainOperation(
+            'renderer',
+            `compileAsync ${label} ${index + 1}/${compileTargets.length}`,
+            batchStartedAt,
+            batchFinishedAt,
+          );
+          await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+        }
+        const compileFinishedAt = performance.now();
+        const programsAfter = renderer.info.programs?.length || 0;
+        tamarindMetrics.shaderWarmups ??= [];
+        tamarindMetrics.shaderWarmups.push({
+          asset: label,
+          durationMs: compileFinishedAt - warmupStartedAt,
+          batchCount: compileTargets.length,
+          maxBatchMs: Math.max(0, ...batchDurations),
+          programsBefore,
+          programsAfter,
+        });
+      },
       onAssetLoaded: ({ key, object }) => {
         if (key === 'coast') coast = object;
         if (key === 'millPond') millPond = object;
@@ -1088,10 +1179,14 @@ async function initializeScene() {
         console.info(`[Tamarind] Asset secundário integrado: ${key}.`);
       },
       onPhaseComplete: (phase, elapsedMs) => {
+        if (phase === 'visual-ready') tamarindMetrics.visualReadyMs = elapsedMs;
         setMobileDebugPhase(`${phase} pronto · ${Math.round(elapsedMs)}ms`);
         console.info(`[Tamarind] Fase ${phase} pronta em ${Math.round(elapsedMs)} ms.`);
       },
-    }).then((secondary) => {
+    }).then(async (secondary) => {
+      if (loadAuditEnabled) {
+        await new Promise((resolve) => window.setTimeout(resolve, 0));
+      }
       updateGoatWalk = secondary.updateGoatWalk;
       updateWizardNpc = secondary.updateWizardNpc;
       dayNightController.refresh();
@@ -1112,6 +1207,41 @@ async function initializeScene() {
         (total, entry) => total + entry.durationMs,
         0,
       );
+      tamarindMetrics.rendererStats = {
+        drawCalls: renderer.info.render.calls,
+        triangles: renderer.info.render.triangles,
+        geometries: renderer.info.memory.geometries,
+        textures: renderer.info.memory.textures,
+        programs: renderer.info.programs?.length || 0,
+        loadingFps: tamarindMetrics.loadingFps || 0,
+      };
+      tamarindMetrics.initialJsResources = resources
+        .filter((entry) => entry.initiatorType === 'script' || entry.name.includes('/assets/index-'))
+        .map((entry) => ({
+          url: entry.name,
+          startMs: entry.startTime,
+          durationMs: entry.duration,
+          transferBytes: entry.transferSize || entry.encodedBodySize || 0,
+        }));
+      const measuredOperations = [...(tamarindMetrics.operations || [])]
+        .sort((left, right) => left.startMs - right.startMs);
+      tamarindMetrics.longTaskDetails = tamarindMetrics.longTasks.map((task, index) => {
+        const taskEnd = task.startMs + task.durationMs;
+        const overlaps = measuredOperations.filter((operation) => (
+          operation.startMs < taskEnd && operation.endMs > task.startMs
+        ));
+        return {
+          index: index + 1,
+          startMs: task.startMs,
+          durationMs: task.durationMs,
+          overlappingOperations: overlaps.map((operation) => ({
+            asset: operation.asset,
+            operation: operation.operation,
+            startMs: operation.startMs,
+            durationMs: operation.durationMs,
+          })),
+        };
+      });
       const resourceCounts = resources.reduce((counts, entry) => {
         const url = entry.name.split('?')[0];
         counts[url] = (counts[url] ?? 0) + 1;
@@ -1120,20 +1250,55 @@ async function initializeScene() {
       tamarindMetrics.duplicateRequests = Object.entries(resourceCounts)
         .filter(([, count]) => count > 1)
         .map(([url, count]) => ({ url, count }));
-      console.table(tamarindMetrics.assets.map((asset) => ({
+      const sortedAssetMetrics = [...tamarindMetrics.assets]
+        .sort((left, right) => (right.totalMs || 0) - (left.totalMs || 0));
+      const loadAuditRows = sortedAssetMetrics.map((asset) => ({
         asset: asset.asset,
         phase: asset.phase,
         sizeMB: (asset.bytes / 1024 / 1024).toFixed(2),
+        queueWaitMs: Math.round(asset.queueWaitMs || 0),
+        fetchMs: Math.round(asset.fetchMs || 0),
+        arrayBufferMs: Math.round(asset.arrayBufferMs || 0),
         downloadMs: Math.round(asset.downloadMs),
         parseMs: Math.round(asset.parseMs),
+        integrationMs: Math.round(asset.integrationMs || 0),
         totalMs: Math.round(asset.totalMs),
-      })));
-      console.info('[Tamarind] Métricas de carregamento.', JSON.stringify(tamarindMetrics));
-      if (new URLSearchParams(window.location.search).has('perf')) {
+      }));
+      tamarindMetrics.sortedAssetMetrics = loadAuditRows;
+      tamarindMetrics.criticalPath = {
+        visualWorldBlocker: sortedAssetMetrics
+          .filter((asset) => ['inhabited', 'inhabited-high'].includes(asset.phase))
+          .sort((left, right) => (right.integrationEndMs || right.totalMs || 0)
+            - (left.integrationEndMs || left.totalMs || 0))[0]?.asset ?? null,
+        technicalCompletionBlocker: sortedAssetMetrics[0]?.asset ?? null,
+      };
+      window.__tamarindLoadAudit = tamarindMetrics;
+      if (loadAuditEnabled) {
+        console.table(loadAuditRows);
+        console.table(measuredOperations.map((operation) => ({
+          operation: operation.operation,
+          asset: operation.asset,
+          startMs: Math.round(operation.startMs),
+          durationMs: Math.round(operation.durationMs),
+        })));
+        console.table(tamarindMetrics.longTaskDetails.map((task) => ({
+          longTask: task.index,
+          startMs: Math.round(task.startMs),
+          durationMs: Math.round(task.durationMs),
+          overlaps: task.overlappingOperations
+            .map((operation) => `${operation.asset}: ${operation.operation}`)
+            .join(' | '),
+        })));
+        console.info('[Tamarind] Caminho crítico.', tamarindMetrics.criticalPath);
+        console.info('[Tamarind] Métricas de carregamento.', JSON.stringify(tamarindMetrics));
+      }
+      if (debugParams.has('perf')) {
         const diagnostic = {
           firstRenderMs: Math.round(tamarindMetrics.firstRenderMs),
           islandVisibleMs: Math.round(tamarindMetrics.islandVisibleMs),
           landmarksReadyMs: Math.round(tamarindMetrics.landmarksReadyMs),
+          visualWorldReadyMs: Math.round(tamarindMetrics.visualWorldReadyMs || 0),
+          visualReadyMs: Math.round(tamarindMetrics.visualReadyMs || 0),
           inhabitedReadyMs: Math.round(tamarindMetrics.inhabitedReadyMs),
           worldCompleteMs: Math.round(tamarindMetrics.worldCompleteMs),
           navigationTtfbMs: Math.round(tamarindMetrics.navigationTtfbMs || 0),
@@ -1142,23 +1307,54 @@ async function initializeScene() {
           totalTransferBytes: tamarindMetrics.totalTransferBytes,
           longTaskCount: tamarindMetrics.longTaskCount,
           longTaskTotalMs: Math.round(tamarindMetrics.longTaskTotalMs),
+          longTaskDetails: tamarindMetrics.longTaskDetails,
+          operations: measuredOperations,
+          batches: tamarindMetrics.batches || [],
+          rendererStats: tamarindMetrics.rendererStats,
+          shaderProgramTimeline: tamarindMetrics.shaderProgramTimeline || [],
+          shaderWarmups: tamarindMetrics.shaderWarmups || [],
+          initialJsResources: tamarindMetrics.initialJsResources,
+          landmarkAuditStage: tamarindMetrics.landmarkAuditStage ?? null,
           duplicateRequests: tamarindMetrics.duplicateRequests,
           terrainSamplerBuildMs: Math.round(tamarindMetrics.terrainSamplerBuildMs || 0),
           terrainSamplerReadyMs: Math.round(tamarindMetrics.terrainSamplerReadyMs || 0),
-          assets: tamarindMetrics.assets.map((asset) => ({
+          criticalPath: tamarindMetrics.criticalPath,
+          assets: sortedAssetMetrics.map((asset) => ({
             asset: asset.asset,
+            url: asset.url,
+            phase: asset.phase,
             bytes: asset.bytes,
+            requestStartMs: Math.round(asset.requestStartMs || asset.startedAtMs || 0),
+            downloadEndMs: Math.round(asset.downloadEndMs || 0),
+            parseStartMs: Math.round(asset.parseStartMs || 0),
+            parseEndMs: Math.round(asset.parseEndMs || 0),
+            integrationEndMs: Math.round(asset.integrationEndMs || 0),
+            queueWaitMs: Math.round(asset.queueWaitMs || 0),
+            fetchMs: Math.round(asset.fetchMs || 0),
+            arrayBufferMs: Math.round(asset.arrayBufferMs || 0),
             downloadMs: Math.round(asset.downloadMs),
             parseMs: Math.round(asset.parseMs),
+            integrationMs: Math.round(asset.integrationMs || 0),
             totalMs: Math.round(asset.totalMs),
           })),
         };
+        let diagnosticNode = document.querySelector('#tamarind-perf-diagnostic');
+        if (!diagnosticNode) {
+          diagnosticNode = document.createElement('script');
+          diagnosticNode.id = 'tamarind-perf-diagnostic';
+          diagnosticNode.type = 'application/json';
+          document.head.appendChild(diagnosticNode);
+        }
+        diagnosticNode.textContent = JSON.stringify(diagnostic);
         document.title = [
           'Tamarind Perf',
           `first=${Math.round(tamarindMetrics.firstRenderMs)}ms`,
           `landmarks=${Math.round(tamarindMetrics.landmarksReadyMs)}ms`,
+          `visual=${Math.round(tamarindMetrics.visualWorldReadyMs || 0)}ms`,
           `world=${Math.round(tamarindMetrics.worldCompleteMs)}ms`,
           `glb=${tamarindMetrics.glbRequestCount}`,
+          `long=${tamarindMetrics.longTaskCount}`,
+          `stage=${tamarindMetrics.landmarkAuditStage ?? 'full'}`,
         ].join(' | ');
         window.history.replaceState(
           null,

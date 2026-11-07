@@ -13,7 +13,6 @@ const TREE_TYPE_A_URL = '/artwork/models/tree_type_a.web.glb?v=9143bdc0ab85';
 const TREE_TYPE_B_URL = '/artwork/models/tree_type_b.web.glb?v=46ae11f15a0b';
 const TREE_LIGHT_CLUSTER_URL = '/artwork/models/tree_light_cluster.web.glb?v=d19829a2f15b';
 const TREE_TECNOMAGO_URL = '/artwork/models/tree_tecnomago.web.glb?v=3234ed2e0299';
-const TEMPLE_URL = '/artwork/models/templo.web.glb?v=2ae217c2250a';
 const SETTLEMENT_HOUSE_URL = '/artwork/models/casasite.web.glb?v=aa864a626482';
 const BACKGROUND_CASTLE_URL = '/artwork/models/roman_temple.web.glb?v=f17717b7ac30';
 const RIGGED_GOAT_URL = '/artwork/models/bode_rigged.web.glb?v=1233e20fcabe';
@@ -25,6 +24,16 @@ const TARGET_HORIZONTAL_SIZE = 150;
 const gltfLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const glbDownloads = new Map();
 const gltfRequests = new Map();
+const runtimeParams = new URLSearchParams(window.location.search);
+const loadAuditEnabled = runtimeParams.get('debugLoad') === '1' || runtimeParams.has('perf');
+const debugGoatEnabled = runtimeParams.get('debugGoat') === '1';
+const landmarkAuditStage = runtimeParams.has('landmarkStage')
+  ? THREE.MathUtils.clamp(Number(runtimeParams.get('landmarkStage')) || 0, 0, 3)
+  : null;
+
+function findAssetMetric(url) {
+  return getMetrics().assets.find((entry) => entry.url === url);
+}
 
 function emitAssetDebug(status, detail) {
   if (new URLSearchParams(window.location.search).get('debugMobile') !== '1') return;
@@ -41,28 +50,98 @@ function getMetrics() {
   return metrics;
 }
 
+let measuredOperationId = 0;
+
+function beginMeasuredOperation(asset, operation) {
+  if (!loadAuditEnabled) return null;
+  const id = `${operation}-${measuredOperationId += 1}`;
+  const startMs = performance.now();
+  const startMark = `tamarind:${id}:start`;
+  performance.mark(startMark);
+  return { id, asset, operation, startMs, startMark };
+}
+
+function endMeasuredOperation(token) {
+  if (!token) return null;
+  const endMs = performance.now();
+  const endMark = `tamarind:${token.id}:end`;
+  const measureName = `tamarind:${token.asset}:${token.operation}:${token.id}`;
+  performance.mark(endMark);
+  performance.measure(measureName, token.startMark, endMark);
+  const record = {
+    asset: token.asset,
+    operation: token.operation,
+    startMs: token.startMs,
+    endMs,
+    durationMs: endMs - token.startMs,
+  };
+  const metrics = getMetrics();
+  metrics.operations ??= [];
+  metrics.operations.push(record);
+  return record;
+}
+
+function measureSyncOperation(asset, operation, callback) {
+  if (!loadAuditEnabled) return callback();
+  const token = beginMeasuredOperation(asset, operation);
+  try {
+    return callback();
+  } finally {
+    endMeasuredOperation(token);
+  }
+}
+
+async function measureAsyncOperation(asset, operation, callback) {
+  if (!loadAuditEnabled) return callback();
+  const token = beginMeasuredOperation(asset, operation);
+  try {
+    return await callback();
+  } finally {
+    endMeasuredOperation(token);
+  }
+}
+
 function primeGlbDownload(url, label, phase = 'secondary') {
   if (!glbDownloads.has(url)) {
+    const queuedAt = performance.now();
     const metric = {
       asset: label,
       url,
       phase,
-      startedAtMs: performance.now() - getMetrics().startedAt,
+      kind: 'glb',
+      startedAtMs: queuedAt - getMetrics().startedAt,
+      requestStartMs: 0,
+      downloadEndMs: 0,
+      parseStartMs: 0,
+      parseEndMs: 0,
+      integrationEndMs: 0,
       bytes: 0,
+      fetchMs: 0,
+      arrayBufferMs: 0,
+      queueWaitMs: 0,
       downloadMs: 0,
       parseMs: 0,
+      integrationMs: 0,
       totalMs: 0,
     };
     getMetrics().assets.push(metric);
     emitAssetDebug('start', { label, url, phase });
     const startedAt = performance.now();
+    metric.requestStartMs = startedAt - getMetrics().startedAt;
+    metric.queueWaitMs = startedAt - queuedAt;
     const request = fetch(url, { cache: 'force-cache' })
       .then((response) => {
+        const responseStartedAt = performance.now();
+        metric.fetchMs = responseStartedAt - startedAt;
         if (!response.ok) throw new Error(`${response.status} ${response.statusText}: ${url}`);
-        return response.arrayBuffer();
+        return response.arrayBuffer().then((buffer) => {
+          metric.arrayBufferMs = performance.now() - responseStartedAt;
+          return buffer;
+        });
       })
       .then((buffer) => {
         metric.downloadMs = performance.now() - startedAt;
+        metric.downloadEndMs = performance.now() - getMetrics().startedAt;
         metric.bytes = buffer.byteLength;
         return { buffer, metric };
       })
@@ -79,23 +158,38 @@ function primeGlbDownload(url, label, phase = 'secondary') {
 
 function loadGlbOnce(url, label, phase = 'secondary') {
   if (!gltfRequests.has(url)) {
+    const parseQueuedAt = performance.now();
     const timerLabel = `[Tamarind] GLB ${label}`;
-    console.time(timerLabel);
+    if (loadAuditEnabled) console.time(timerLabel);
     const request = primeGlbDownload(url, label, phase)
       .then(async ({ buffer, metric }) => {
         const parseStartedAt = performance.now();
+        const downloadEndedAt = getMetrics().startedAt + metric.downloadEndMs;
+        metric.queueWaitMs += Math.max(
+          0,
+          parseStartedAt - Math.max(downloadEndedAt, parseQueuedAt),
+        );
+        metric.parseStartMs = parseStartedAt - getMetrics().startedAt;
         const resourcePath = url.slice(0, url.lastIndexOf('/') + 1);
-        const gltf = await gltfLoader.parseAsync(buffer, resourcePath);
-        metric.parseMs = performance.now() - parseStartedAt;
-        metric.totalMs = performance.now() - (getMetrics().startedAt + metric.startedAtMs);
-        console.info('[Tamarind] Asset carregado.', {
-          asset: label,
-          phase,
-          sizeMB: (metric.bytes / 1024 / 1024).toFixed(2),
-          downloadMs: Math.round(metric.downloadMs),
-          parseMs: Math.round(metric.parseMs),
-          totalMs: Math.round(metric.totalMs),
-        });
+        const gltf = await measureAsyncOperation(label, 'GLTF parse', () => (
+          gltfLoader.parseAsync(buffer, resourcePath)
+        ));
+        const parseEndedAt = performance.now();
+        metric.parseMs = parseEndedAt - parseStartedAt;
+        metric.parseEndMs = parseEndedAt - getMetrics().startedAt;
+        metric.totalMs = metric.parseEndMs;
+        gltf.scene.userData.tamarindAssetMetricUrl = url;
+        if (loadAuditEnabled) {
+          console.info('[Tamarind] Asset carregado.', {
+            asset: label,
+            phase,
+            sizeMB: (metric.bytes / 1024 / 1024).toFixed(2),
+            queueWaitMs: Math.round(metric.queueWaitMs),
+            downloadMs: Math.round(metric.downloadMs),
+            parseMs: Math.round(metric.parseMs),
+            totalMs: Math.round(metric.totalMs),
+          });
+        }
         emitAssetDebug('success', {
           label,
           url,
@@ -105,7 +199,9 @@ function loadGlbOnce(url, label, phase = 'secondary') {
         });
         return gltf;
       })
-      .finally(() => console.timeEnd(timerLabel))
+      .finally(() => {
+        if (loadAuditEnabled) console.timeEnd(timerLabel);
+      })
       .catch((error) => {
         gltfRequests.delete(url);
         console.error('[Tamarind] Falha ao carregar GLB.', { asset: label, url, phase, error });
@@ -125,6 +221,99 @@ function runWhenIdle(task) {
     } else {
       window.setTimeout(run, 0);
     }
+  });
+}
+
+async function yieldToBrowser() {
+  if (globalThis.scheduler?.yield) {
+    await globalThis.scheduler.yield();
+    return;
+  }
+  await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+}
+
+async function yieldToAnimationFrame() {
+  await yieldToBrowser();
+  await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+}
+
+async function runMeasuredBatch(asset, batch, task) {
+  if (!loadAuditEnabled) return task();
+  const token = beginMeasuredOperation(asset, batch);
+  const startedAt = performance.now();
+  const result = await task();
+  const finishedAt = performance.now();
+  const metrics = getMetrics();
+  metrics.batches ??= [];
+  metrics.batches.push({
+    asset,
+    batch,
+    startMs: startedAt,
+    durationMs: finishedAt - startedAt,
+  });
+  endMeasuredOperation(token);
+  return result;
+}
+
+async function fillInstancedMeshBatched({
+  asset,
+  batchLabel,
+  meshes,
+  count,
+  applyMatrix,
+  batchSize = 32,
+  onFirstBatch,
+}) {
+  meshes.forEach((mesh) => {
+    mesh.count = 0;
+    mesh.frustumCulled = false;
+  });
+  for (let start = 0; start < count; start += batchSize) {
+    const end = Math.min(count, start + batchSize);
+    await runMeasuredBatch(asset, `${batchLabel} ${start}-${end}`, () => {
+      for (let index = start; index < end; index += 1) {
+        applyMatrix(index, meshes);
+      }
+      meshes.forEach((mesh) => {
+        mesh.count = end;
+        mesh.instanceMatrix.needsUpdate = true;
+      });
+    });
+    if (start === 0) onFirstBatch?.();
+    await yieldToAnimationFrame();
+  }
+  meshes.forEach((mesh) => {
+    mesh.computeBoundingBox();
+    mesh.computeBoundingSphere();
+    mesh.frustumCulled = true;
+  });
+}
+
+function runMeasuredRuntimeTask(asset, phase, task) {
+  const queuedAt = performance.now();
+  const metric = {
+    asset,
+    url: `runtime:${asset}`,
+    phase,
+    kind: 'runtime',
+    startedAtMs: queuedAt - getMetrics().startedAt,
+    bytes: 0,
+    queueWaitMs: 0,
+    downloadMs: 0,
+    parseMs: 0,
+    integrationMs: 0,
+    totalMs: 0,
+  };
+  getMetrics().assets.push(metric);
+  return runWhenIdle(async () => {
+    const startedAt = performance.now();
+    metric.queueWaitMs = startedAt - queuedAt;
+    const result = await measureAsyncOperation(asset, 'runtime integration', task);
+    const finishedAt = performance.now();
+    metric.integrationMs = finishedAt - startedAt;
+    metric.integrationEndMs = finishedAt - getMetrics().startedAt;
+    metric.totalMs = metric.integrationEndMs;
+    return result;
   });
 }
 
@@ -239,11 +428,16 @@ function createTerrainSurfaceSampler(terrain, cellSize = 3) {
 }
 
 async function loadMasterTerrain() {
+  const totalOperation = beginMeasuredOperation('ilha/base', 'loadMasterTerrain total');
   const gltf = await loadGlbOnce(TERRAIN_URL, 'ilha/base', 'critical');
   const source = gltf.scene;
-  source.updateMatrixWorld(true);
+  measureSyncOperation('ilha/base', 'updateMatrixWorld source', () => source.updateMatrixWorld(true));
 
-  const sourceBounds = new THREE.Box3().setFromObject(source);
+  const sourceBounds = measureSyncOperation(
+    'ilha/base',
+    'Box3 source',
+    () => new THREE.Box3().setFromObject(source),
+  );
   const sourceSize = sourceBounds.getSize(new THREE.Vector3());
   const sourceCenter = sourceBounds.getCenter(new THREE.Vector3());
   const horizontalSize = Math.max(sourceSize.x, sourceSize.z);
@@ -259,15 +453,21 @@ async function loadMasterTerrain() {
   );
   terrainGroup.add(source);
 
-  source.traverse((object) => {
-    if (!object.isMesh) return;
-    object.castShadow = false;
-    object.receiveShadow = true;
-    object.frustumCulled = true;
+  measureSyncOperation('ilha/base', 'material setup traverse', () => {
+    source.traverse((object) => {
+      if (!object.isMesh) return;
+      object.castShadow = false;
+      object.receiveShadow = true;
+      object.frustumCulled = true;
+    });
   });
 
-  terrainGroup.updateMatrixWorld(true);
-  const worldBounds = new THREE.Box3().setFromObject(terrainGroup);
+  measureSyncOperation('ilha/base', 'updateMatrixWorld terrain', () => terrainGroup.updateMatrixWorld(true));
+  const worldBounds = measureSyncOperation(
+    'ilha/base',
+    'Box3 terrain',
+    () => new THREE.Box3().setFromObject(terrainGroup),
+  );
   const worldSize = worldBounds.getSize(new THREE.Vector3());
   console.info('[Tamarind] Master terrain carregado.', {
     size: worldSize.toArray(),
@@ -278,6 +478,7 @@ async function loadMasterTerrain() {
     triangles: 266236,
   });
 
+  endMeasuredOperation(totalOperation);
   return { terrainGroup, worldBounds, worldSize };
 }
 
@@ -340,7 +541,7 @@ async function loadRiggedGoat(terrain, { treePlacements = [], avoidObjects = [] 
     if (object.isBone) {
       bones.push(object.name || '(sem nome)');
       bonesByName.set(object.name, object);
-      console.log('[GOAT BONE]', object.name || '(sem nome)');
+      if (debugGoatEnabled) console.log('[GOAT BONE]', object.name || '(sem nome)');
     }
     if (!object.isMesh) return;
     meshCount += 1;
@@ -492,7 +693,9 @@ async function loadRiggedGoat(terrain, { treePlacements = [], avoidObjects = [] 
     if (movementState === 'pause' && sequenceTime >= pauseEndsAt) {
       movementState = 'walk';
       currentWalkSpeed = walkSpeed * (0.9 + Math.random() * 0.2);
-      console.info(`[GOAT ROUTE] Caminhando para waypoint ${waypointIndex + 1}/${waypoints.length}.`);
+      if (debugGoatEnabled) {
+        console.info(`[GOAT ROUTE] Caminhando para waypoint ${waypointIndex + 1}/${waypoints.length}.`);
+      }
     }
     const shouldWalk = movementState === 'walk';
     walkWeight = THREE.MathUtils.damp(walkWeight, shouldWalk ? 1 : 0, shouldWalk ? 7 : 5, deltaTime);
@@ -509,10 +712,14 @@ async function loadRiggedGoat(terrain, { treePlacements = [], avoidObjects = [] 
           movementState = 'pause';
           const pauseDuration = 2 + Math.random() * 3;
           pauseEndsAt = sequenceTime + pauseDuration;
-          console.info(`[GOAT ROUTE] Pausa Idle de ${pauseDuration.toFixed(1)}s; próximo waypoint ${waypointIndex + 1}/${waypoints.length}.`);
+          if (debugGoatEnabled) {
+            console.info(`[GOAT ROUTE] Pausa Idle de ${pauseDuration.toFixed(1)}s; próximo waypoint ${waypointIndex + 1}/${waypoints.length}.`);
+          }
         } else {
           currentWalkSpeed = walkSpeed * (0.9 + Math.random() * 0.2);
-          console.info(`[GOAT ROUTE] Seguindo sem pausa para waypoint ${waypointIndex + 1}/${waypoints.length}.`);
+          if (debugGoatEnabled) {
+            console.info(`[GOAT ROUTE] Seguindo sem pausa para waypoint ${waypointIndex + 1}/${waypoints.length}.`);
+          }
         }
       } else {
         walkDirection.copy(toTarget).multiplyScalar(1 / distance);
@@ -577,7 +784,9 @@ async function loadRiggedGoat(terrain, { treePlacements = [], avoidObjects = [] 
     waypoints: waypoints.map((waypoint) => [waypoint.x, waypoint.surface.point.y, waypoint.z]),
     modelForwardYaw,
   };
-  console.info('[GOAT] GLB carregado e assentado.', JSON.stringify(diagnostics));
+  if (debugGoatEnabled) {
+    console.info('[GOAT] GLB carregado e assentado.', JSON.stringify(diagnostics));
+  }
 
   return { goat, updateGoatWalk };
 }
@@ -726,7 +935,10 @@ async function loadWizardNpc(terrain, tecnomagoHouse) {
   return { wizard, updateWizardNpc };
 }
 
-async function loadTecnomagoCampfire(terrain) {
+async function loadTecnomagoCampfire(
+  terrain,
+  { glowLight = null, onBeforeReveal, onBatchReady } = {},
+) {
   const gltf = await loadGlbOnce(CAMPFIRE_URL, 'fogueira do Tecnomago', 'decor');
   const source = gltf.scene;
   source.updateMatrixWorld(true);
@@ -774,9 +986,12 @@ async function loadTecnomagoCampfire(terrain) {
 
   let meshCount = 0;
   const materials = new Set();
+  const visualMeshes = [];
   source.traverse((object) => {
     if (!object.isMesh) return;
     meshCount += 1;
+    visualMeshes.push({ mesh: object, visible: object.visible });
+    object.visible = false;
     object.castShadow = false;
     object.receiveShadow = true;
     object.frustumCulled = true;
@@ -784,15 +999,35 @@ async function loadTecnomagoCampfire(terrain) {
     meshMaterials.filter(Boolean).forEach((material) => materials.add(material));
   });
 
-  const glow = new THREE.PointLight('#ff9a45', 0.08, 5.5, 2.1);
+  const glow = glowLight ?? new THREE.PointLight('#ff9a45', 0, 5.5, 2.1);
   glow.name = 'TecnomagoCampfireGlow';
+  glow.color.set('#ff9a45');
+  glow.intensity = 0;
+  glow.distance = 5.5;
+  glow.decay = 2.1;
   glow.position.set(center.x, bounds.min.y + size.y * 0.46, center.z);
   glow.castShadow = false;
-  campfire.add(glow);
   campfire.userData.update = (nightAmount, elapsed) => {
     const flicker = 0.92 + Math.sin(elapsed * 5.7) * 0.035 + Math.sin(elapsed * 8.9) * 0.02;
     glow.intensity = THREE.MathUtils.lerp(0.08, 3.2, nightAmount) * flicker;
   };
+
+  visualMeshes.forEach(({ mesh, visible }) => { mesh.visible = visible; });
+  await onBeforeReveal?.(campfire);
+  visualMeshes.forEach(({ mesh }) => { mesh.visible = false; });
+  campfire.add(glow);
+  glow.intensity = 0.08;
+  onBatchReady?.(campfire);
+  const meshBatchSize = 3;
+  for (let start = 0; start < visualMeshes.length; start += meshBatchSize) {
+    const end = Math.min(visualMeshes.length, start + meshBatchSize);
+    await runMeasuredBatch('fogueira do Tecnomago', `reveal meshes ${start}-${end}`, () => {
+      for (let index = start; index < end; index += 1) {
+        visualMeshes[index].mesh.visible = visualMeshes[index].visible;
+      }
+    });
+    await yieldToAnimationFrame();
+  }
 
   console.info('[Tamarind] Fogueira do Tecnomago carregada.', JSON.stringify({
     position: campfire.position.toArray(),
@@ -1179,11 +1414,16 @@ async function createCoastalTransition(terrain, worldBounds, oceanY) {
 }
 
 async function loadTecnomagoHouse(terrain) {
+  const totalOperation = beginMeasuredOperation('Casa do Tecnomago', 'landmark integration total');
   const gltf = await loadGlbOnce(TECNOMAGO_HOUSE_URL, 'Casa do Tecnomago');
   const source = gltf.scene;
-  source.updateMatrixWorld(true);
+  measureSyncOperation('Casa do Tecnomago', 'updateMatrixWorld', () => source.updateMatrixWorld(true));
 
-  const bounds = new THREE.Box3().setFromObject(source);
+  const bounds = measureSyncOperation(
+    'Casa do Tecnomago',
+    'Box3 setFromObject',
+    () => new THREE.Box3().setFromObject(source),
+  );
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
   const targetWidth = 19.490625;
@@ -1215,11 +1455,13 @@ async function loadTecnomagoHouse(terrain) {
   );
   houseGroup.add(source);
 
-  source.traverse((object) => {
-    if (!object.isMesh) return;
-    object.castShadow = true;
-    object.receiveShadow = true;
-    object.frustumCulled = true;
+  measureSyncOperation('Casa do Tecnomago', 'material setup traverse', () => {
+    source.traverse((object) => {
+      if (!object.isMesh) return;
+      object.castShadow = true;
+      object.receiveShadow = true;
+      object.frustumCulled = true;
+    });
   });
 
   const accessGroup = new THREE.Group();
@@ -1256,15 +1498,21 @@ async function loadTecnomagoHouse(terrain) {
     supportHeights: footprintSupport.heights,
     triangles: 639968,
   }));
+  endMeasuredOperation(totalOperation);
   return houseGroup;
 }
 
 async function loadArchitectureHouse(terrain) {
+  const totalOperation = beginMeasuredOperation('Coliseu 3D/Arquitetura', 'landmark integration total');
   const gltf = await loadGlbOnce(ARCHITECTURE_HOUSE_URL, 'Coliseu 3D/Arquitetura');
   const source = gltf.scene;
-  source.updateMatrixWorld(true);
+  measureSyncOperation('Coliseu 3D/Arquitetura', 'updateMatrixWorld', () => source.updateMatrixWorld(true));
 
-  const bounds = new THREE.Box3().setFromObject(source);
+  const bounds = measureSyncOperation(
+    'Coliseu 3D/Arquitetura',
+    'Box3 setFromObject',
+    () => new THREE.Box3().setFromObject(source),
+  );
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
   const targetWidth = 15.5;
@@ -1307,11 +1555,13 @@ async function loadArchitectureHouse(terrain) {
   );
   architectureGroup.add(source);
 
-  source.traverse((object) => {
-    if (!object.isMesh) return;
-    object.castShadow = true;
-    object.receiveShadow = true;
-    object.frustumCulled = true;
+  measureSyncOperation('Coliseu 3D/Arquitetura', 'material setup traverse', () => {
+    source.traverse((object) => {
+      if (!object.isMesh) return;
+      object.castShadow = true;
+      object.receiveShadow = true;
+      object.frustumCulled = true;
+    });
   });
 
   console.info('[Tamarind] Casa 3D/Arquitetura carregada.', {
@@ -1321,15 +1571,21 @@ async function loadArchitectureHouse(terrain) {
     supportHeights,
     triangles: 498604,
   });
+  endMeasuredOperation(totalOperation);
   return architectureGroup;
 }
 
 async function loadAppsBasilica(terrain) {
+  const totalOperation = beginMeasuredOperation('Basílica Apps', 'landmark integration total');
   const gltf = await loadGlbOnce(APPS_BASILICA_URL, 'Basílica Apps');
   const source = gltf.scene;
-  source.updateMatrixWorld(true);
+  measureSyncOperation('Basílica Apps', 'updateMatrixWorld', () => source.updateMatrixWorld(true));
 
-  const bounds = new THREE.Box3().setFromObject(source);
+  const bounds = measureSyncOperation(
+    'Basílica Apps',
+    'Box3 setFromObject',
+    () => new THREE.Box3().setFromObject(source),
+  );
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
   const targetWidth = 27;
@@ -1372,11 +1628,13 @@ async function loadAppsBasilica(terrain) {
   );
   basilicaGroup.add(source);
 
-  source.traverse((object) => {
-    if (!object.isMesh) return;
-    object.castShadow = true;
-    object.receiveShadow = true;
-    object.frustumCulled = true;
+  measureSyncOperation('Basílica Apps', 'material setup traverse', () => {
+    source.traverse((object) => {
+      if (!object.isMesh) return;
+      object.castShadow = true;
+      object.receiveShadow = true;
+      object.frustumCulled = true;
+    });
   });
 
   console.info('[Tamarind] Basílica Apps carregada.', {
@@ -1385,71 +1643,19 @@ async function loadAppsBasilica(terrain) {
     scale: uniformScale,
     supportHeights,
   });
+  endMeasuredOperation(totalOperation);
   return basilicaGroup;
 }
 
-async function loadOrientalPagoda(terrain) {
-  const gltf = await loadGlbOnce(TEMPLE_URL, 'templo oriental');
-  const source = gltf.scene;
-  source.updateMatrixWorld(true);
-
-  const bounds = new THREE.Box3().setFromObject(source);
-  const size = bounds.getSize(new THREE.Vector3());
-  const center = bounds.getCenter(new THREE.Vector3());
-  const targetWidth = 12;
-  const uniformScale = targetWidth / Math.max(size.x, size.z, 0.0001);
-  const target = new THREE.Vector3(-18, 0, 52);
-  const yaw = 0;
-  const halfBaseX = size.x * uniformScale * 0.47;
-  const halfBaseZ = size.z * uniformScale * 0.47;
-  const localFootprintSamples = [
-    [0, 0], [0, -halfBaseZ], [0, halfBaseZ],
-    [-halfBaseX, 0], [halfBaseX, 0],
-    [-halfBaseX, -halfBaseZ], [halfBaseX, -halfBaseZ],
-    [-halfBaseX, halfBaseZ], [halfBaseX, halfBaseZ],
-  ];
-  const footprintSamples = localFootprintSamples.map(([x, z]) => {
-    const offset = new THREE.Vector3(x, 0, z).applyAxisAngle(THREE.Object3D.DEFAULT_UP, yaw);
-    return [offset.x, offset.z];
-  });
-  const supportHeights = footprintSamples
-    .map(([dx, dz]) => terrainHeightAt(terrain, target.x + dx, target.z + dz))
-    .sort((a, b) => a - b);
-  target.y = supportHeights[4];
-
-  const scaledCenter = center.clone().multiplyScalar(uniformScale);
-  scaledCenter.applyAxisAngle(THREE.Object3D.DEFAULT_UP, yaw);
-
-  const templeGroup = new THREE.Group();
-  templeGroup.name = 'OrientalPagoda';
-  templeGroup.scale.setScalar(uniformScale);
-  templeGroup.rotation.y = yaw;
-  templeGroup.position.set(
-    target.x - scaledCenter.x,
-    target.y - bounds.min.y * uniformScale - 0.12,
-    target.z - scaledCenter.z,
-  );
-  templeGroup.add(source);
-
-  source.traverse((object) => {
-    if (!object.isMesh) return;
-    object.castShadow = true;
-    object.receiveShadow = true;
-    object.frustumCulled = true;
-  });
-
-  console.info('[Tamarind] Pagode oriental carregado.', {
-    position: templeGroup.position.toArray(),
-    rotationY: yaw,
-    scale: uniformScale,
-    supportHeights,
-  });
-  return templeGroup;
-}
-
-async function loadInstancedTrees(terrain, _backgroundPlacements = []) {
+async function loadInstancedTrees(terrain, _backgroundPlacements = [], { onBatchReady } = {}) {
   const vegetation = new THREE.Group();
   vegetation.name = 'GlbTreeVisualPrototype';
+  let vegetationRevealed = false;
+  const revealVegetation = () => {
+    if (vegetationRevealed) return;
+    vegetationRevealed = true;
+    onBatchReady?.(vegetation);
+  };
 
   // The two downloads are primed only after the main landmarks. Parsing is
   // deliberately sequential so the secondary phase does not create one large
@@ -1465,38 +1671,51 @@ async function loadInstancedTrees(terrain, _backgroundPlacements = []) {
     loadGlbOnce(TREE_TECNOMAGO_URL, 'árvore estilizada do Tecnomago', 'inhabited')
   ));
 
-  const bakeStaticGeometry = (mesh) => {
+  const bakeStaticGeometry = async (mesh, speciesLabel) => {
     const geometry = mesh.geometry.clone();
     if (mesh.isSkinnedMesh && geometry.attributes.skinIndex && geometry.attributes.skinWeight) {
       mesh.skeleton.update();
       const position = geometry.attributes.position;
       const vertex = new THREE.Vector3();
-      for (let index = 0; index < position.count; index += 1) {
-        vertex.fromBufferAttribute(position, index);
-        mesh.applyBoneTransform(index, vertex);
-        position.setXYZ(index, vertex.x, vertex.y, vertex.z);
+      const vertexBatchSize = 12000;
+      for (let start = 0; start < position.count; start += vertexBatchSize) {
+        const end = Math.min(position.count, start + vertexBatchSize);
+        await runMeasuredBatch('vegetação arbórea completa', `${speciesLabel} skin bake ${start}-${end}`, () => {
+          for (let index = start; index < end; index += 1) {
+            vertex.fromBufferAttribute(position, index);
+            mesh.applyBoneTransform(index, vertex);
+            position.setXYZ(index, vertex.x, vertex.y, vertex.z);
+          }
+        });
+        await yieldToBrowser();
       }
       position.needsUpdate = true;
       geometry.deleteAttribute('skinIndex');
       geometry.deleteAttribute('skinWeight');
       geometry.computeVertexNormals();
     }
-    geometry.applyMatrix4(mesh.matrixWorld);
+    await runMeasuredBatch('vegetação arbórea completa', `${speciesLabel} geometry bake`, () => {
+      geometry.applyMatrix4(mesh.matrixWorld);
+    });
     return geometry;
   };
 
-  const prepareSpecies = ({ gltf, label, targetHeight, selectMesh }) => {
+  const prepareSpecies = async ({ gltf, label, targetHeight, selectMesh }) => {
     const source = gltf.scene;
     source.updateMatrixWorld(true);
-    const parts = [];
+    const sourceMeshes = [];
     source.traverse((object) => {
-      if (!object.isMesh || !selectMesh(object)) return;
+      if (object.isMesh && selectMesh(object)) sourceMeshes.push(object);
+    });
+    const parts = [];
+    for (const object of sourceMeshes) {
       parts.push({
-        geometry: bakeStaticGeometry(object),
+        geometry: await bakeStaticGeometry(object, label),
         material: object.material,
         sourceName: object.name,
       });
-    });
+      await yieldToBrowser();
+    }
     if (!parts.length) throw new Error(`${label}: nenhum mesh adequado encontrado.`);
 
     const bounds = new THREE.Box3();
@@ -1524,7 +1743,7 @@ async function loadInstancedTrees(terrain, _backgroundPlacements = []) {
     };
   };
 
-  const typeA = prepareSpecies({
+  const typeA = await prepareSpecies({
     gltf: typeAGltf,
     label: 'Tipo A',
     targetHeight: 7.2,
@@ -1533,34 +1752,39 @@ async function loadInstancedTrees(terrain, _backgroundPlacements = []) {
     selectMesh: (mesh) => mesh.name === 'Object_11'
       || `${mesh.name} ${mesh.geometry?.name ?? ''}`.toLowerCase().includes('tree:tree_'),
   });
-  const typeB = prepareSpecies({
+  await yieldToBrowser();
+  const typeB = await prepareSpecies({
     gltf: typeBGltf,
     label: 'Tipo B',
     targetHeight: 7.7,
     selectMesh: () => true,
   });
+  await yieldToBrowser();
   // The lightweight GLB contains two complete tree variants at the same
   // origin. They are instanced independently instead of being overlapped.
-  const lightTreeOne = prepareSpecies({
+  const lightTreeOne = await prepareSpecies({
     gltf: lightTreeGltf,
     label: 'Leve 1',
     targetHeight: 6.3,
     selectMesh: (mesh) => `${mesh.name} ${mesh.geometry?.name ?? ''}`
       .toLowerCase().replace(/[^a-z0-9]/g, '').startsWith('tree1'),
   });
-  const lightTreeTwo = prepareSpecies({
+  await yieldToBrowser();
+  const lightTreeTwo = await prepareSpecies({
     gltf: lightTreeGltf,
     label: 'Leve 2',
     targetHeight: 5.9,
     selectMesh: (mesh) => `${mesh.name} ${mesh.geometry?.name ?? ''}`
       .toLowerCase().replace(/[^a-z0-9]/g, '').startsWith('tree2'),
   });
-  const tecnomagoTree = prepareSpecies({
+  await yieldToBrowser();
+  const tecnomagoTree = await prepareSpecies({
     gltf: tecnomagoTreeGltf,
     label: 'Tecnomago',
     targetHeight: 5.8,
     selectMesh: () => true,
   });
+  await yieldToBrowser();
 
   const searchOffsets = [
     [0, 0], [1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5],
@@ -1574,17 +1798,21 @@ async function loadInstancedTrees(terrain, _backgroundPlacements = []) {
     { species: typeB, x: -34, z: 39, yaw: 5.55, scale: 1.02, tiltX: -0.02, tiltZ: -0.015 },
   ];
   const placements = [];
-  requests.forEach((request) => {
-    for (const [dx, dz] of searchOffsets) {
-      const x = request.x + dx;
-      const z = request.z + dz;
-      if (placements.some((tree) => Math.hypot(tree.x - x, tree.z - z) < 3.2)) continue;
-      const surface = terrainSurfaceAt(terrain, x, z);
-      if (!surface || surface.point.y < 1.2 || surface.normal.y < 0.64) continue;
-      placements.push({ ...request, x, y: surface.point.y + 0.015, z });
-      return;
-    }
-  });
+  for (let requestIndex = 0; requestIndex < requests.length; requestIndex += 1) {
+    const request = requests[requestIndex];
+    await runMeasuredBatch('vegetação arbórea completa', `assentamento protótipo ${requestIndex}`, () => {
+      for (const [dx, dz] of searchOffsets) {
+        const x = request.x + dx;
+        const z = request.z + dz;
+        if (placements.some((tree) => Math.hypot(tree.x - x, tree.z - z) < 3.2)) continue;
+        const surface = terrainSurfaceAt(terrain, x, z);
+        if (!surface || surface.point.y < 1.2 || surface.normal.y < 0.64) continue;
+        placements.push({ ...request, x, y: surface.point.y + 0.015, z });
+        break;
+      }
+    });
+    await yieldToBrowser();
+  }
   if (placements.length !== requests.length) {
     throw new Error(`Protótipo de árvores: ${placements.length}/${requests.length} pontos seguros.`);
   }
@@ -1596,25 +1824,29 @@ async function loadInstancedTrees(terrain, _backgroundPlacements = []) {
     { x: -32, z: -8, yaw: 4.55, scale: 1.2, tiltX: -0.018, tiltZ: -0.01 },
     { x: -26, z: 0.5, yaw: 5.7, scale: 0.9, tiltX: 0.01, tiltZ: 0.016 },
   ];
-  tecnomagoRequests.forEach((request) => {
-    for (const [dx, dz] of searchOffsets) {
-      const x = request.x + dx;
-      const z = request.z + dz;
-      if (Math.hypot(x - tecnomagoCenter.x, z - tecnomagoCenter.y) < 10.8) continue;
-      if (placements.some((tree) => Math.hypot(tree.x - x, tree.z - z) < 2.8)) continue;
-      const surface = terrainSurfaceAt(terrain, x, z);
-      if (!surface || surface.point.y < 1.2 || surface.normal.y < 0.65) continue;
-      placements.push({
-        ...request,
-        species: tecnomagoTree,
-        region: 'tecnomago',
-        x,
-        y: surface.point.y + 0.012,
-        z,
-      });
-      return;
-    }
-  });
+  for (let requestIndex = 0; requestIndex < tecnomagoRequests.length; requestIndex += 1) {
+    const request = tecnomagoRequests[requestIndex];
+    await runMeasuredBatch('vegetação arbórea completa', `assentamento Tecnomago ${requestIndex}`, () => {
+      for (const [dx, dz] of searchOffsets) {
+        const x = request.x + dx;
+        const z = request.z + dz;
+        if (Math.hypot(x - tecnomagoCenter.x, z - tecnomagoCenter.y) < 10.8) continue;
+        if (placements.some((tree) => Math.hypot(tree.x - x, tree.z - z) < 2.8)) continue;
+        const surface = terrainSurfaceAt(terrain, x, z);
+        if (!surface || surface.point.y < 1.2 || surface.normal.y < 0.65) continue;
+        placements.push({
+          ...request,
+          species: tecnomagoTree,
+          region: 'tecnomago',
+          x,
+          y: surface.point.y + 0.012,
+          z,
+        });
+        break;
+      }
+    });
+    await yieldToBrowser();
+  }
   if (placements.filter((tree) => tree.region === 'tecnomago').length !== 4) {
     throw new Error('Não foi possível assentar as quatro árvores do Tecnomago com segurança.');
   }
@@ -1648,13 +1880,13 @@ async function loadInstancedTrees(terrain, _backgroundPlacements = []) {
       });
     }
   });
-  const templeCoordinates = [
+  const northernGroveCoordinates = [
     [-31, 47], [-34, 53], [-30, 59], [-26, 65], [-18, 66], [-10, 65], [-6, 59],
     [-5, 50], [-8, 43], [-14, 40], [-23, 40], [-28, 43], [-2, 55], [-22, 67],
   ];
-  const templeRequests = templeCoordinates.map(([x, z], index) => ({
+  const northernGroveRequests = northernGroveCoordinates.map(([x, z], index) => ({
     species: index % 2 === 0 ? lightTreeTwo : lightTreeOne,
-    region: 'temple',
+    region: 'north-grove',
     x,
     z,
     yaw: (index * 2.39996 + 0.35) % (Math.PI * 2),
@@ -1662,44 +1894,65 @@ async function loadInstancedTrees(terrain, _backgroundPlacements = []) {
     tiltX: ((index % 3) - 1) * 0.014,
     tiltZ: ((index % 5) - 2) * 0.009,
   }));
-  const forestRequests = [...castleRequests, ...templeRequests];
-  forestRequests.forEach((request) => {
-    for (const [dx, dz] of searchOffsets) {
-      const x = request.x + dx;
-      const z = request.z + dz;
-      if (placements.some((tree) => Math.hypot(tree.x - x, tree.z - z) < 2.35)) continue;
-      const surface = terrainSurfaceAt(terrain, x, z);
-      if (!surface || surface.point.y < 1.2 || surface.normal.y < 0.62) continue;
-      placements.push({ ...request, x, y: surface.point.y + 0.012, z });
-      return;
+  const forestRequests = [...castleRequests, ...northernGroveRequests];
+  for (let requestIndex = 0; requestIndex < forestRequests.length; requestIndex += 1) {
+    const request = forestRequests[requestIndex];
+    let placed = false;
+    for (let offsetIndex = 0; offsetIndex < searchOffsets.length; offsetIndex += 1) {
+      const [dx, dz] = searchOffsets[offsetIndex];
+      await runMeasuredBatch(
+        'vegetação arbórea completa',
+        `assentamento floresta ${requestIndex}.${offsetIndex}`,
+        () => {
+        const x = request.x + dx;
+        const z = request.z + dz;
+        if (placements.some((tree) => Math.hypot(tree.x - x, tree.z - z) < 2.35)) return;
+        const surface = terrainSurfaceAt(terrain, x, z);
+        if (!surface || surface.point.y < 1.2 || surface.normal.y < 0.62) return;
+        placements.push({ ...request, x, y: surface.point.y + 0.012, z });
+        placed = true;
+        },
+      );
+      if (placed) break;
+      await yieldToBrowser();
     }
-  });
+    await yieldToBrowser();
+  }
 
   const dummy = new THREE.Object3D();
   const speciesList = [typeA, typeB, lightTreeOne, lightTreeTwo, tecnomagoTree];
   let drawCalls = 0;
-  speciesList.forEach((species) => {
+  for (const species of speciesList) {
     const instances = placements.filter((placement) => placement.species === species);
-    species.parts.forEach(({ geometry, material, sourceName }, partIndex) => {
+    const speciesMeshes = species.parts.map(({ geometry, material, sourceName }, partIndex) => {
       const instanced = new THREE.InstancedMesh(geometry, material, instances.length);
       instanced.name = `Tree${species.label.replace(' ', '')}_${sourceName || partIndex}`;
       instanced.castShadow = false;
       instanced.receiveShadow = true;
-      instanced.frustumCulled = true;
-      instances.forEach((tree, index) => {
+      instanced.frustumCulled = false;
+      instanced.count = 0;
+      vegetation.add(instanced);
+      drawCalls += Array.isArray(material) ? material.length : 1;
+      return instanced;
+    });
+    await fillInstancedMeshBatched({
+      asset: 'vegetação arbórea completa',
+      batchLabel: `árvores ${species.label}`,
+      meshes: speciesMeshes,
+      count: instances.length,
+      batchSize: 24,
+      onFirstBatch: revealVegetation,
+      applyMatrix: (index, meshes) => {
+        const tree = instances[index];
         dummy.position.set(tree.x, tree.y, tree.z);
         dummy.rotation.set(tree.tiltX, tree.yaw, tree.tiltZ);
         dummy.scale.setScalar(species.baseScale * tree.scale);
         dummy.updateMatrix();
-        instanced.setMatrixAt(index, dummy.matrix);
-      });
-      instanced.instanceMatrix.needsUpdate = true;
-      instanced.computeBoundingBox();
-      instanced.computeBoundingSphere();
-      vegetation.add(instanced);
-      drawCalls += Array.isArray(material) ? material.length : 1;
+        meshes.forEach((mesh) => mesh.setMatrixAt(index, dummy.matrix));
+      },
     });
-  });
+    await yieldToBrowser();
+  }
 
   vegetation.userData.placements = placements.map(({ x, z }) => ({ x, z }));
   vegetation.userData.prototypeStats = {
@@ -1724,7 +1977,7 @@ async function loadInstancedTrees(terrain, _backgroundPlacements = []) {
     lightweightDrawCalls: lightTreeOne.parts.length + lightTreeTwo.parts.length,
     distribution: {
       castle: placements.filter((tree) => tree.region === 'castle').length,
-      temple: placements.filter((tree) => tree.region === 'temple').length,
+      northernGrove: placements.filter((tree) => tree.region === 'north-grove').length,
       tecnomago: placements.filter((tree) => tree.region === 'tecnomago').length,
     },
     reuse: 'InstancedMesh com geometry/material/texturas compartilhados',
@@ -2454,7 +2707,7 @@ function createWindmillPair(terrain) {
   return windmills;
 }
 
-function createProceduralMillPond(terrain) {
+async function createProceduralMillPond(terrain, { onBatchReady } = {}) {
   const pond = new THREE.Group();
   pond.name = 'ProceduralMillPond';
   const center = new THREE.Vector2(-24, -17);
@@ -2567,6 +2820,8 @@ function createProceduralMillPond(terrain) {
   margin.name = 'MillPondWetMargin';
   margin.renderOrder = 1;
   pond.add(margin);
+  onBatchReady?.(pond);
+  await yieldToAnimationFrame();
 
   const detailDummy = new THREE.Object3D();
   const mudPatchCount = 22;
@@ -2583,24 +2838,27 @@ function createProceduralMillPond(terrain) {
     mudPatchCount,
   );
   mudPatches.name = 'MillPondIrregularMudPatches';
-  for (let index = 0; index < mudPatchCount; index += 1) {
-    const contourIndex = (index * 7 + 3) % contour.length;
-    const nextIndex = (contourIndex + 1) % contour.length;
-    const mix = ((index * 37) % 100) / 100;
-    const localPoint = [
-      THREE.MathUtils.lerp(contour[contourIndex][0], contour[nextIndex][0], mix),
-      THREE.MathUtils.lerp(contour[contourIndex][1], contour[nextIndex][1], mix),
-    ];
-    const world = worldPoint(localPoint, 1.01 + (index % 5) * 0.035);
-    detailDummy.position.set(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.026, world.z);
-    detailDummy.rotation.set(-Math.PI / 2, 0, index * 1.91);
-    detailDummy.scale.set(0.8 + (index % 6) * 0.22, 0.7 + (index % 4) * 0.13, 1);
-    detailDummy.updateMatrix();
-    mudPatches.setMatrixAt(index, detailDummy.matrix);
-  }
-  mudPatches.instanceMatrix.needsUpdate = true;
   mudPatches.renderOrder = 1;
   pond.add(mudPatches);
+  await fillInstancedMeshBatched({
+    asset: 'brejo procedural', batchLabel: 'lama', meshes: [mudPatches],
+    count: mudPatchCount, batchSize: 24,
+    applyMatrix: (index) => {
+      const contourIndex = (index * 7 + 3) % contour.length;
+      const nextIndex = (contourIndex + 1) % contour.length;
+      const mix = ((index * 37) % 100) / 100;
+      const localPoint = [
+        THREE.MathUtils.lerp(contour[contourIndex][0], contour[nextIndex][0], mix),
+        THREE.MathUtils.lerp(contour[contourIndex][1], contour[nextIndex][1], mix),
+      ];
+      const world = worldPoint(localPoint, 1.01 + (index % 5) * 0.035);
+      detailDummy.position.set(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.026, world.z);
+      detailDummy.rotation.set(-Math.PI / 2, 0, index * 1.91);
+      detailDummy.scale.set(0.8 + (index % 6) * 0.22, 0.7 + (index % 4) * 0.13, 1);
+      detailDummy.updateMatrix();
+      mudPatches.setMatrixAt(index, detailDummy.matrix);
+    },
+  });
 
   const islandPoints = [
     [-3.8, -0.9, 1.5, 0.85],
@@ -2614,17 +2872,21 @@ function createProceduralMillPond(terrain) {
     islandPoints.length,
   );
   dryIslands.name = 'MillPondDryIslands';
-  islandPoints.forEach(([localX, localZ, scaleX, scaleZ], index) => {
-    const world = worldPoint([localX, localZ]);
-    detailDummy.position.set(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.07, world.z);
-    detailDummy.rotation.set(0, index * 1.37, 0);
-    detailDummy.scale.set(scaleX, 1, scaleZ);
-    detailDummy.updateMatrix();
-    dryIslands.setMatrixAt(index, detailDummy.matrix);
-  });
-  dryIslands.instanceMatrix.needsUpdate = true;
   dryIslands.receiveShadow = true;
   pond.add(dryIslands);
+  await fillInstancedMeshBatched({
+    asset: 'brejo procedural', batchLabel: 'ilhas secas', meshes: [dryIslands],
+    count: islandPoints.length, batchSize: 24,
+    applyMatrix: (index) => {
+      const [localX, localZ, scaleX, scaleZ] = islandPoints[index];
+      const world = worldPoint([localX, localZ]);
+      detailDummy.position.set(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.07, world.z);
+      detailDummy.rotation.set(0, index * 1.37, 0);
+      detailDummy.scale.set(scaleX, 1, scaleZ);
+      detailDummy.updateMatrix();
+      dryIslands.setMatrixAt(index, detailDummy.matrix);
+    },
+  });
 
   const reedCount = 156;
   const reedGeometry = new THREE.CylinderGeometry(0.035, 0.055, 1, 5);
@@ -2632,32 +2894,35 @@ function createProceduralMillPond(terrain) {
   const reeds = new THREE.InstancedMesh(reedGeometry, reedMaterial, reedCount);
   reeds.name = 'MillPondReeds';
   const reedDummy = new THREE.Object3D();
-  for (let index = 0; index < reedCount; index += 1) {
-    const cluster = Math.floor(index / 6);
-    const contourIndex = (cluster * 5 + (index % 3)) % contour.length;
-    const nextIndex = (contourIndex + 1) % contour.length;
-    const mix = (index * 0.381966) % 1;
-    const localPoint = [
-      THREE.MathUtils.lerp(contour[contourIndex][0], contour[nextIndex][0], mix),
-      THREE.MathUtils.lerp(contour[contourIndex][1], contour[nextIndex][1], mix),
-    ];
-    const factor = 0.87 + ((cluster * 7 + index) % 15) * 0.022;
-    const world = worldPoint(localPoint, factor);
-    const height = 0.52 + ((index * 11) % 10) * 0.07;
-    reedDummy.position.set(
-      world.x + Math.sin(index * 2.31) * (0.28 + (index % 4) * 0.11),
-      terrainHeightAt(terrain, world.x, world.z) + height * 0.46,
-      world.z + Math.cos(index * 1.77) * (0.25 + (index % 5) * 0.09),
-    );
-    reedDummy.rotation.set(Math.sin(index) * 0.05, index * 1.43, Math.cos(index * 0.7) * 0.045);
-    reedDummy.scale.set(0.82 + (index % 3) * 0.11, height, 0.82 + ((index + 1) % 3) * 0.1);
-    reedDummy.updateMatrix();
-    reeds.setMatrixAt(index, reedDummy.matrix);
-  }
-  reeds.instanceMatrix.needsUpdate = true;
   reeds.castShadow = false;
   reeds.receiveShadow = true;
   pond.add(reeds);
+  await fillInstancedMeshBatched({
+    asset: 'brejo procedural', batchLabel: 'juncos', meshes: [reeds],
+    count: reedCount, batchSize: 32,
+    applyMatrix: (index) => {
+      const cluster = Math.floor(index / 6);
+      const contourIndex = (cluster * 5 + (index % 3)) % contour.length;
+      const nextIndex = (contourIndex + 1) % contour.length;
+      const mix = (index * 0.381966) % 1;
+      const localPoint = [
+        THREE.MathUtils.lerp(contour[contourIndex][0], contour[nextIndex][0], mix),
+        THREE.MathUtils.lerp(contour[contourIndex][1], contour[nextIndex][1], mix),
+      ];
+      const factor = 0.87 + ((cluster * 7 + index) % 15) * 0.022;
+      const world = worldPoint(localPoint, factor);
+      const height = 0.52 + ((index * 11) % 10) * 0.07;
+      reedDummy.position.set(
+        world.x + Math.sin(index * 2.31) * (0.28 + (index % 4) * 0.11),
+        terrainHeightAt(terrain, world.x, world.z) + height * 0.46,
+        world.z + Math.cos(index * 1.77) * (0.25 + (index % 5) * 0.09),
+      );
+      reedDummy.rotation.set(Math.sin(index) * 0.05, index * 1.43, Math.cos(index * 0.7) * 0.045);
+      reedDummy.scale.set(0.82 + (index % 3) * 0.11, height, 0.82 + ((index + 1) % 3) * 0.1);
+      reedDummy.updateMatrix();
+      reeds.setMatrixAt(index, reedDummy.matrix);
+    },
+  });
 
   const grassCount = 78;
   const marshGrass = new THREE.InstancedMesh(
@@ -2666,30 +2931,33 @@ function createProceduralMillPond(terrain) {
     grassCount,
   );
   marshGrass.name = 'MillPondLowGrass';
-  for (let index = 0; index < grassCount; index += 1) {
-    const contourIndex = (Math.floor(index / 4) * 5 + index) % contour.length;
-    const nextIndex = (contourIndex + 1) % contour.length;
-    const mix = ((index * 29) % 100) / 100;
-    const localPoint = [
-      THREE.MathUtils.lerp(contour[contourIndex][0], contour[nextIndex][0], mix),
-      THREE.MathUtils.lerp(contour[contourIndex][1], contour[nextIndex][1], mix),
-    ];
-    const world = worldPoint(localPoint, 1.02 + (index % 7) * 0.025);
-    const height = 0.38 + (index % 6) * 0.08;
-    detailDummy.position.set(
-      world.x + Math.sin(index * 1.7) * 0.34,
-      terrainHeightAt(terrain, world.x, world.z) + height * 0.47,
-      world.z + Math.cos(index * 2.1) * 0.3,
-    );
-    detailDummy.rotation.set(Math.sin(index) * 0.08, index * 1.13, Math.cos(index) * 0.07);
-    detailDummy.scale.set(0.72 + (index % 4) * 0.12, height, 0.72 + ((index + 2) % 4) * 0.1);
-    detailDummy.updateMatrix();
-    marshGrass.setMatrixAt(index, detailDummy.matrix);
-  }
-  marshGrass.instanceMatrix.needsUpdate = true;
   marshGrass.castShadow = false;
   marshGrass.receiveShadow = true;
   pond.add(marshGrass);
+  await fillInstancedMeshBatched({
+    asset: 'brejo procedural', batchLabel: 'capim', meshes: [marshGrass],
+    count: grassCount, batchSize: 32,
+    applyMatrix: (index) => {
+      const contourIndex = (Math.floor(index / 4) * 5 + index) % contour.length;
+      const nextIndex = (contourIndex + 1) % contour.length;
+      const mix = ((index * 29) % 100) / 100;
+      const localPoint = [
+        THREE.MathUtils.lerp(contour[contourIndex][0], contour[nextIndex][0], mix),
+        THREE.MathUtils.lerp(contour[contourIndex][1], contour[nextIndex][1], mix),
+      ];
+      const world = worldPoint(localPoint, 1.02 + (index % 7) * 0.025);
+      const height = 0.38 + (index % 6) * 0.08;
+      detailDummy.position.set(
+        world.x + Math.sin(index * 1.7) * 0.34,
+        terrainHeightAt(terrain, world.x, world.z) + height * 0.47,
+        world.z + Math.cos(index * 2.1) * 0.3,
+      );
+      detailDummy.rotation.set(Math.sin(index) * 0.08, index * 1.13, Math.cos(index) * 0.07);
+      detailDummy.scale.set(0.72 + (index % 4) * 0.12, height, 0.72 + ((index + 2) % 4) * 0.1);
+      detailDummy.updateMatrix();
+      marshGrass.setMatrixAt(index, detailDummy.matrix);
+    },
+  });
 
   const stoneCount = 54;
   const stones = new THREE.InstancedMesh(
@@ -2698,20 +2966,23 @@ function createProceduralMillPond(terrain) {
     stoneCount,
   );
   stones.name = 'MillPondMarginStones';
-  for (let index = 0; index < stoneCount; index += 1) {
-    const contourIndex = (index * 5 + 2) % contour.length;
-    const factor = 1.01 + ((index * 3) % 7) * 0.022;
-    const world = worldPoint(contour[contourIndex], factor);
-    reedDummy.position.set(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.12, world.z);
-    reedDummy.rotation.set(index * 0.17, index * 1.21, index * 0.09);
-    reedDummy.scale.set(0.75 + (index % 4) * 0.13, 0.45 + (index % 3) * 0.1, 0.8 + ((index + 2) % 4) * 0.11);
-    reedDummy.updateMatrix();
-    stones.setMatrixAt(index, reedDummy.matrix);
-  }
-  stones.instanceMatrix.needsUpdate = true;
   stones.castShadow = false;
   stones.receiveShadow = true;
   pond.add(stones);
+  await fillInstancedMeshBatched({
+    asset: 'brejo procedural', batchLabel: 'pedras', meshes: [stones],
+    count: stoneCount, batchSize: 32,
+    applyMatrix: (index) => {
+      const contourIndex = (index * 5 + 2) % contour.length;
+      const factor = 1.01 + ((index * 3) % 7) * 0.022;
+      const world = worldPoint(contour[contourIndex], factor);
+      reedDummy.position.set(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.12, world.z);
+      reedDummy.rotation.set(index * 0.17, index * 1.21, index * 0.09);
+      reedDummy.scale.set(0.75 + (index % 4) * 0.13, 0.45 + (index % 3) * 0.1, 0.8 + ((index + 2) % 4) * 0.11);
+      reedDummy.updateMatrix();
+      stones.setMatrixAt(index, reedDummy.matrix);
+    },
+  });
 
   const leafCount = 36;
   const floatingLeaves = new THREE.InstancedMesh(
@@ -2720,20 +2991,23 @@ function createProceduralMillPond(terrain) {
     leafCount,
   );
   floatingLeaves.name = 'MillPondFloatingLeaves';
-  for (let index = 0; index < leafCount; index += 1) {
-    const point = contour[(index * 3) % contour.length];
-    const factor = 0.18 + ((index * 5) % 13) * 0.052;
-    const world = worldPoint(point, factor);
-    reedDummy.position.set(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.078, world.z);
-    reedDummy.rotation.set(-Math.PI / 2, 0, index * 1.17);
-    reedDummy.scale.setScalar(0.7 + (index % 5) * 0.12);
-    reedDummy.updateMatrix();
-    floatingLeaves.setMatrixAt(index, reedDummy.matrix);
-  }
-  floatingLeaves.instanceMatrix.needsUpdate = true;
   floatingLeaves.castShadow = false;
   floatingLeaves.receiveShadow = true;
   pond.add(floatingLeaves);
+  await fillInstancedMeshBatched({
+    asset: 'brejo procedural', batchLabel: 'folhas', meshes: [floatingLeaves],
+    count: leafCount, batchSize: 32,
+    applyMatrix: (index) => {
+      const point = contour[(index * 3) % contour.length];
+      const factor = 0.18 + ((index * 5) % 13) * 0.052;
+      const world = worldPoint(point, factor);
+      reedDummy.position.set(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.078, world.z);
+      reedDummy.rotation.set(-Math.PI / 2, 0, index * 1.17);
+      reedDummy.scale.setScalar(0.7 + (index % 5) * 0.12);
+      reedDummy.updateMatrix();
+      floatingLeaves.setMatrixAt(index, reedDummy.matrix);
+    },
+  });
 
   const branchCount = 13;
   const branches = new THREE.InstancedMesh(
@@ -2742,19 +3016,22 @@ function createProceduralMillPond(terrain) {
     branchCount,
   );
   branches.name = 'MillPondDriftwood';
-  for (let index = 0; index < branchCount; index += 1) {
-    const point = contour[(index * 4 + 1) % contour.length];
-    const world = worldPoint(point, 0.5 + (index % 7) * 0.065);
-    reedDummy.position.set(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.09, world.z);
-    reedDummy.rotation.set(0, index * 1.31, Math.PI / 2 + Math.sin(index) * 0.08);
-    reedDummy.scale.set(0.7 + index * 0.08, 0.72 + (index % 2) * 0.22, 0.7);
-    reedDummy.updateMatrix();
-    branches.setMatrixAt(index, reedDummy.matrix);
-  }
-  branches.instanceMatrix.needsUpdate = true;
   branches.castShadow = false;
   branches.receiveShadow = true;
   pond.add(branches);
+  await fillInstancedMeshBatched({
+    asset: 'brejo procedural', batchLabel: 'galhos', meshes: [branches],
+    count: branchCount, batchSize: 24,
+    applyMatrix: (index) => {
+      const point = contour[(index * 4 + 1) % contour.length];
+      const world = worldPoint(point, 0.5 + (index % 7) * 0.065);
+      reedDummy.position.set(world.x, terrainHeightAt(terrain, world.x, world.z) + 0.09, world.z);
+      reedDummy.rotation.set(0, index * 1.31, Math.PI / 2 + Math.sin(index) * 0.08);
+      reedDummy.scale.set(0.7 + index * 0.08, 0.72 + (index % 2) * 0.22, 0.7);
+      reedDummy.updateMatrix();
+      branches.setMatrixAt(index, reedDummy.matrix);
+    },
+  });
 
   pond.userData.update = (elapsed) => {
     waterMaterial.opacity = 0.81 + Math.sin(elapsed * 0.42) * 0.018;
@@ -2785,6 +3062,14 @@ export async function createWorld3d() {
   const world = new THREE.Group();
   world.name = 'TamarindTerrainEvaluationWorld';
   scene.add(world);
+
+  // Reserve the campfire light from the first frame with zero intensity. The
+  // stable point-light count prevents recompiling every scene material when
+  // the decorative campfire arrives later.
+  const reservedCampfireGlow = new THREE.PointLight('#ff9a45', 0, 5.5, 2.1);
+  reservedCampfireGlow.name = 'ReservedTecnomagoCampfireGlow';
+  reservedCampfireGlow.castShadow = false;
+  world.add(reservedCampfireGlow);
 
   scene.add(new THREE.HemisphereLight('#9aa9c9', '#3c3044', 0.58));
   const key = new THREE.DirectionalLight('#ffd0a0', 2.85);
@@ -2855,6 +3140,7 @@ export async function createWorld3d() {
   const startSecondaryLoad = ({
     onAssetLoaded,
     onPhaseComplete,
+    prepareAssetForReveal,
     debugMobile = false,
     debugStage = 8,
   } = {}) => {
@@ -2863,14 +3149,36 @@ export async function createWorld3d() {
     secondaryLoadPromise = (async () => {
       const notify = (key, object) => onAssetLoaded?.({ key, object, landmarks });
       const addWorldAsset = (key, object) => {
-        world.add(object);
+        if (object.parent !== world) world.add(object);
+        let metricUrl = object?.userData?.tamarindAssetMetricUrl;
+        if (!metricUrl && object?.traverse) {
+          object.traverse((child) => {
+            if (!metricUrl && child.userData?.tamarindAssetMetricUrl) {
+              metricUrl = child.userData.tamarindAssetMetricUrl;
+            }
+          });
+        }
+        const metric = metricUrl ? findAssetMetric(metricUrl) : null;
+        if (metric) {
+          const integratedAt = performance.now();
+          metric.integrationMs = Math.max(
+            0,
+            integratedAt - (getMetrics().startedAt + metric.parseEndMs),
+          );
+          metric.integrationEndMs = integratedAt - getMetrics().startedAt;
+          metric.totalMs = metric.integrationEndMs;
+        }
         notify(key, object);
         return object;
       };
 
       const samplerStartedAt = performance.now();
       terrainGroup.userData.surfaceSampler = await runWhenIdle(() => (
-        createTerrainSurfaceSampler(terrainGroup)
+        measureSyncOperation(
+          'ilha/base',
+          'surface sampler build',
+          () => createTerrainSurfaceSampler(terrainGroup),
+        )
       ));
       getMetrics().terrainSamplerReadyMs = performance.now() - getMetrics().startedAt;
       getMetrics().terrainSamplerBuildMs = performance.now() - samplerStartedAt;
@@ -2883,28 +3191,66 @@ export async function createWorld3d() {
       console.time('[Tamarind] fase 2 — landmarks principais');
       // The critical frame is already visible. Start the three independent
       // landmarks together so one parse/integration never blocks the next.
-      const [tecnomagoHouse, appsBasilica, architectureHouse] = await Promise.all([
-        runWhenIdle(() => loadTecnomagoHouse(terrainGroup)),
-        runWhenIdle(() => loadAppsBasilica(terrainGroup)),
-        runWhenIdle(() => loadArchitectureHouse(terrainGroup)),
-      ]);
-      landmarks.tecnomago = tecnomagoHouse;
-      addWorldAsset('tecnomago', tecnomagoHouse);
-      if (tecnomagoHouse.userData.entranceAccess) {
+      let tecnomagoHouse = null;
+      let appsBasilica = null;
+      let architectureHouse = null;
+      if (landmarkAuditStage === null) {
+        [tecnomagoHouse, appsBasilica, architectureHouse] = await Promise.all([
+          runWhenIdle(() => loadTecnomagoHouse(terrainGroup)),
+          runWhenIdle(() => loadAppsBasilica(terrainGroup)),
+          runWhenIdle(() => loadArchitectureHouse(terrainGroup)),
+        ]);
+      } else {
+        if (landmarkAuditStage >= 1) {
+          tecnomagoHouse = await runWhenIdle(() => loadTecnomagoHouse(terrainGroup));
+        }
+        if (landmarkAuditStage >= 2) {
+          appsBasilica = await runWhenIdle(() => loadAppsBasilica(terrainGroup));
+        }
+        if (landmarkAuditStage >= 3) {
+          architectureHouse = await runWhenIdle(() => loadArchitectureHouse(terrainGroup));
+        }
+      }
+      if (tecnomagoHouse) {
+        landmarks.tecnomago = tecnomagoHouse;
+        addWorldAsset('tecnomago', tecnomagoHouse);
+      }
+      if (tecnomagoHouse?.userData.entranceAccess) {
         world.add(tecnomagoHouse.userData.entranceAccess);
       }
 
-      landmarks.apps = appsBasilica;
-      addWorldAsset('apps', appsBasilica);
+      if (appsBasilica) {
+        landmarks.apps = appsBasilica;
+        addWorldAsset('apps', appsBasilica);
+      }
 
-      landmarks.architecture = architectureHouse;
-      addWorldAsset('architecture', architectureHouse);
+      if (architectureHouse) {
+        landmarks.architecture = architectureHouse;
+        addWorldAsset('architecture', architectureHouse);
+      }
       console.timeEnd('[Tamarind] fase 2 — landmarks principais');
       getMetrics().landmarksReadyMs = performance.now() - getMetrics().startedAt;
       onPhaseComplete?.('landmarks', getMetrics().landmarksReadyMs);
 
+      if (landmarkAuditStage !== null) {
+        getMetrics().landmarkAuditStage = landmarkAuditStage;
+        return {
+          harbor: null,
+          coast: null,
+          campfire: null,
+          millPond: null,
+          windmills: null,
+          settlement: null,
+          vegetation: null,
+          goat: null,
+          updateGoatWalk: null,
+          wizard: null,
+          updateWizardNpc: null,
+          landmarks,
+        };
+      }
+
       if (debugMobile) {
-        let pagoda = null;
         let castleResult = null;
         let backgroundCastle = null;
         let settlement = null;
@@ -2919,13 +3265,6 @@ export async function createWorld3d() {
           castleResult = await runWhenIdle(() => loadBackgroundCastle(terrainGroup));
           backgroundCastle = addWorldAsset('castle', castleResult.castle);
           onPhaseComplete?.('debug + castelo', performance.now() - getMetrics().startedAt);
-        }
-
-        if (debugStage >= 2) {
-          primeGlbDownload(TEMPLE_URL, 'templo oriental', 'debug-temple');
-          pagoda = await runWhenIdle(() => loadOrientalPagoda(terrainGroup));
-          addWorldAsset('pagoda', pagoda);
-          onPhaseComplete?.('debug + templo', performance.now() - getMetrics().startedAt);
         }
 
         if (debugStage >= 3) {
@@ -2953,7 +3292,6 @@ export async function createWorld3d() {
             tecnomagoHouse,
             architectureHouse,
             appsBasilica,
-            pagoda,
             backgroundCastle,
           ].filter(Boolean);
           settlement?.traverse((object) => {
@@ -2976,7 +3314,9 @@ export async function createWorld3d() {
 
         if (debugStage >= 7) {
           primeGlbDownload(CAMPFIRE_URL, 'fogueira do Tecnomago', 'debug-campfire');
-          campfire = await runWhenIdle(() => loadTecnomagoCampfire(terrainGroup));
+          campfire = await runWhenIdle(() => loadTecnomagoCampfire(terrainGroup, {
+            glowLight: reservedCampfireGlow,
+          }));
           addWorldAsset('campfire', campfire);
           onPhaseComplete?.('debug + campfire', performance.now() - getMetrics().startedAt);
         }
@@ -3006,7 +3346,6 @@ export async function createWorld3d() {
       console.time('[Tamarind] fase 3 — mundo habitado');
       // Network work overlaps inside this phase while each parse/integration is
       // yielded separately. Later phases never block the first rendered frame.
-      primeGlbDownload(TEMPLE_URL, 'templo oriental', 'inhabited');
       primeGlbDownload(BACKGROUND_CASTLE_URL, 'castelo ao fundo', 'inhabited');
       primeGlbDownload(SETTLEMENT_HOUSE_URL, 'casas da vila', 'inhabited');
       primeGlbDownload(TREE_TYPE_A_URL, 'árvore Tipo A', 'inhabited');
@@ -3019,32 +3358,73 @@ export async function createWorld3d() {
       primeGlbDownload(TREE_TECNOMAGO_URL, 'árvore estilizada do Tecnomago', 'inhabited');
       primeGlbDownload(RIGGED_GOAT_URL, 'bode', 'inhabited');
       primeGlbDownload(WIZARD_NPC_URL, 'mago NPC', 'inhabited');
-      const [pagoda, castleResult, settlement] = await Promise.all([
-        runWhenIdle(() => loadOrientalPagoda(terrainGroup)),
-        runWhenIdle(() => loadBackgroundCastle(terrainGroup)),
-        runWhenIdle(() => createMedievalSettlement(terrainGroup, ocean.position.y)),
-      ]);
-      addWorldAsset('pagoda', pagoda);
-      const backgroundCastle = addWorldAsset('castle', castleResult.castle);
-      addWorldAsset('settlement', settlement);
+      primeGlbDownload(CAMPFIRE_URL, 'fogueira do Tecnomago', 'decor');
 
-      const vegetation = await runWhenIdle(() => (
-        loadInstancedTrees(terrainGroup, castleResult.treePlacements)
-      ));
-      addWorldAsset('vegetation', vegetation);
-
-      const [windmills, millPond] = await Promise.all([
-        runWhenIdle(() => createWindmillPair(terrainGroup)),
-        runWhenIdle(() => createProceduralMillPond(terrainGroup)),
+      const castlePromise = runWhenIdle(() => loadBackgroundCastle(terrainGroup))
+        .then(async (result) => {
+          await prepareAssetForReveal?.(result.castle, 'castelo ao fundo');
+          addWorldAsset('castle', result.castle);
+          await yieldToAnimationFrame();
+          return result;
+        });
+      const settlementPromise = runWhenIdle(() => createMedievalSettlement(terrainGroup, ocean.position.y))
+        .then(async (result) => {
+          await prepareAssetForReveal?.(result, 'casas da vila');
+          addWorldAsset('settlement', result);
+          await yieldToAnimationFrame();
+          return result;
+        });
+      const vegetationPromise = runMeasuredRuntimeTask(
+          'vegetação arbórea completa',
+          'inhabited-high',
+          () => loadInstancedTrees(terrainGroup, [], {
+            onBatchReady: (partialVegetation) => {
+              if (partialVegetation.parent !== world) world.add(partialVegetation);
+            },
+          }),
+        ).then(async (result) => {
+          addWorldAsset('vegetation', result);
+          await yieldToAnimationFrame();
+          return result;
+        });
+      const [castleResult, settlement, vegetation] = await Promise.all([
+        castlePromise,
+        settlementPromise,
+        vegetationPromise,
       ]);
+      const backgroundCastle = castleResult.castle;
+
+      getMetrics().visualWorldReadyMs = performance.now() - getMetrics().startedAt;
+      getMetrics().visualReadyMs = getMetrics().visualWorldReadyMs;
+      onPhaseComplete?.('visual-ready', getMetrics().visualReadyMs);
+      await yieldToAnimationFrame();
+
+      const windmills = await runMeasuredRuntimeTask(
+        'moinhos',
+        'inhabited-medium',
+        () => createWindmillPair(terrainGroup),
+      );
       addWorldAsset('windmills', windmills);
+      await yieldToAnimationFrame();
+      const millPond = await runMeasuredRuntimeTask(
+        'brejo procedural',
+        'inhabited-medium',
+        () => createProceduralMillPond(terrainGroup, {
+          onBatchReady: (partialPond) => {
+            if (partialPond.parent !== world) world.add(partialPond);
+          },
+        }),
+      );
       addWorldAsset('millPond', millPond);
+      await yieldToAnimationFrame();
+      console.timeEnd('[Tamarind] fase 3 — mundo habitado');
+      getMetrics().inhabitedReadyMs = performance.now() - getMetrics().startedAt;
+      onPhaseComplete?.('inhabited', getMetrics().inhabitedReadyMs);
 
       const goatAvoidObjects = [
         tecnomagoHouse,
         architectureHouse,
         appsBasilica,
-        pagoda,
         backgroundCastle,
         millPond,
       ];
@@ -3054,30 +3434,40 @@ export async function createWorld3d() {
       windmills.traverse((object) => {
         if (object.name === 'MedievalWindmillModel') goatAvoidObjects.push(object);
       });
-      const [goatResult, wizardResult] = await Promise.all([
-        runWhenIdle(() => loadRiggedGoat(terrainGroup, {
+      console.time('[Tamarind] fase 4 — acabamento e NPCs');
+      const goatResult = await runWhenIdle(() => loadRiggedGoat(terrainGroup, {
           treePlacements: vegetation.userData.placements,
           avoidObjects: goatAvoidObjects,
-        })),
-        runWhenIdle(() => loadWizardNpc(terrainGroup, tecnomagoHouse)),
-      ]);
+        }));
       addWorldAsset('goat', goatResult.goat);
+      await yieldToAnimationFrame();
+      const wizardResult = await runWhenIdle(() => loadWizardNpc(terrainGroup, tecnomagoHouse));
       addWorldAsset('wizard', wizardResult.wizard);
-      console.timeEnd('[Tamarind] fase 3 — mundo habitado');
-      getMetrics().inhabitedReadyMs = performance.now() - getMetrics().startedAt;
-      onPhaseComplete?.('inhabited', getMetrics().inhabitedReadyMs);
-
-      console.time('[Tamarind] fase 4 — acabamento costeiro');
-      primeGlbDownload(CAMPFIRE_URL, 'fogueira do Tecnomago', 'decor');
-      const [harbor, coast, campfire] = await Promise.all([
-        runWhenIdle(() => createHarbor(terrainGroup, ocean.position.y)),
-        runWhenIdle(() => createCoastalTransition(terrainGroup, worldBounds, ocean.position.y)),
-        runWhenIdle(() => loadTecnomagoCampfire(terrainGroup)),
-      ]);
+      await yieldToAnimationFrame();
+      const harbor = await runMeasuredRuntimeTask(
+        'porto procedural',
+        'decor-low',
+        () => createHarbor(terrainGroup, ocean.position.y),
+      );
       addWorldAsset('harbor', harbor);
+      await yieldToAnimationFrame();
+      const coast = await runMeasuredRuntimeTask(
+        'transição costeira',
+        'decor-low',
+        () => createCoastalTransition(terrainGroup, worldBounds, ocean.position.y),
+      );
       addWorldAsset('coast', coast);
+      await yieldToAnimationFrame();
+      const campfire = await runWhenIdle(() => loadTecnomagoCampfire(terrainGroup, {
+        glowLight: reservedCampfireGlow,
+        onBeforeReveal: (object) => prepareAssetForReveal?.(object, 'fogueira do Tecnomago'),
+        onBatchReady: (partialCampfire) => {
+          if (partialCampfire.parent !== world) world.add(partialCampfire);
+        },
+      }));
       addWorldAsset('campfire', campfire);
-      console.timeEnd('[Tamarind] fase 4 — acabamento costeiro');
+      await yieldToAnimationFrame();
+      console.timeEnd('[Tamarind] fase 4 — acabamento e NPCs');
       getMetrics().decorReadyMs = performance.now() - getMetrics().startedAt;
       onPhaseComplete?.('decor', getMetrics().decorReadyMs);
 
