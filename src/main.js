@@ -1081,6 +1081,11 @@ async function initializeScene() {
       if (renderStartedAt) {
         const renderFinishedAt = performance.now();
         const renderDurationMs = renderFinishedAt - renderStartedAt;
+        const shaderProgramCount = renderer.info.programs?.length || 0;
+        const shaderTimeline = tamarindMetrics.shaderProgramTimeline ??= [];
+        if (!shaderTimeline.length || shaderTimeline.at(-1).count !== shaderProgramCount) {
+          shaderTimeline.push({ timeMs: renderFinishedAt, count: shaderProgramCount });
+        }
         if (renderDurationMs >= 50) {
           recordMainOperation(
             'renderer',
@@ -1097,6 +1102,7 @@ async function initializeScene() {
       const performanceDuration = performanceNow - performanceSampleStart;
       if (!performanceReported && performanceDuration >= 5000) {
         const fps = (performanceFrames * 1000) / performanceDuration;
+        tamarindMetrics.loadingFps = fps;
         console.info(
           `[Tamarind] Performance moderada: ${fps.toFixed(1)} FPS | `
           + `${renderer.info.render.calls} draw calls | ${renderer.info.render.triangles} triângulos.`,
@@ -1109,6 +1115,60 @@ async function initializeScene() {
     startSecondaryLoad({
       debugMobile: mobileDebugEnabled,
       debugStage: mobileDebugStage,
+      prepareAssetForReveal: async (object, label) => {
+        if (typeof renderer.compileAsync !== 'function') return;
+        const warmupStartedAt = performance.now();
+        const programsBefore = renderer.info.programs?.length || 0;
+        const compileTargets = [];
+        const compiledVariants = new Set();
+        object.traverse((child) => {
+          if (!child.isMesh || !child.material) return;
+          const materials = Array.isArray(child.material) ? child.material : [child.material];
+          materials.filter(Boolean).forEach((material) => {
+            const variantKey = [
+              material.uuid,
+              child.isSkinnedMesh ? 'skin' : 'static',
+              child.geometry?.attributes?.color ? 'color' : 'no-color',
+              child.geometry?.morphAttributes?.position?.length ? 'morph' : 'no-morph',
+            ].join(':');
+            if (compiledVariants.has(variantKey)) return;
+            compiledVariants.add(variantKey);
+            compileTargets.push({ child, material });
+          });
+        });
+        const batchDurations = [];
+        for (let index = 0; index < compileTargets.length; index += 1) {
+          const { child, material } = compileTargets[index];
+          const originalMaterial = child.material;
+          const batchStartedAt = performance.now();
+          child.material = material;
+          try {
+            await renderer.compileAsync(child, camera, scene);
+          } finally {
+            child.material = originalMaterial;
+          }
+          const batchFinishedAt = performance.now();
+          batchDurations.push(batchFinishedAt - batchStartedAt);
+          recordMainOperation(
+            'renderer',
+            `compileAsync ${label} ${index + 1}/${compileTargets.length}`,
+            batchStartedAt,
+            batchFinishedAt,
+          );
+          await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+        }
+        const compileFinishedAt = performance.now();
+        const programsAfter = renderer.info.programs?.length || 0;
+        tamarindMetrics.shaderWarmups ??= [];
+        tamarindMetrics.shaderWarmups.push({
+          asset: label,
+          durationMs: compileFinishedAt - warmupStartedAt,
+          batchCount: compileTargets.length,
+          maxBatchMs: Math.max(0, ...batchDurations),
+          programsBefore,
+          programsAfter,
+        });
+      },
       onAssetLoaded: ({ key, object }) => {
         if (key === 'coast') coast = object;
         if (key === 'millPond') millPond = object;
@@ -1119,10 +1179,14 @@ async function initializeScene() {
         console.info(`[Tamarind] Asset secundário integrado: ${key}.`);
       },
       onPhaseComplete: (phase, elapsedMs) => {
+        if (phase === 'visual-ready') tamarindMetrics.visualReadyMs = elapsedMs;
         setMobileDebugPhase(`${phase} pronto · ${Math.round(elapsedMs)}ms`);
         console.info(`[Tamarind] Fase ${phase} pronta em ${Math.round(elapsedMs)} ms.`);
       },
-    }).then((secondary) => {
+    }).then(async (secondary) => {
+      if (loadAuditEnabled) {
+        await new Promise((resolve) => window.setTimeout(resolve, 0));
+      }
       updateGoatWalk = secondary.updateGoatWalk;
       updateWizardNpc = secondary.updateWizardNpc;
       dayNightController.refresh();
@@ -1143,6 +1207,14 @@ async function initializeScene() {
         (total, entry) => total + entry.durationMs,
         0,
       );
+      tamarindMetrics.rendererStats = {
+        drawCalls: renderer.info.render.calls,
+        triangles: renderer.info.render.triangles,
+        geometries: renderer.info.memory.geometries,
+        textures: renderer.info.memory.textures,
+        programs: renderer.info.programs?.length || 0,
+        loadingFps: tamarindMetrics.loadingFps || 0,
+      };
       tamarindMetrics.initialJsResources = resources
         .filter((entry) => entry.initiatorType === 'script' || entry.name.includes('/assets/index-'))
         .map((entry) => ({
@@ -1226,6 +1298,7 @@ async function initializeScene() {
           islandVisibleMs: Math.round(tamarindMetrics.islandVisibleMs),
           landmarksReadyMs: Math.round(tamarindMetrics.landmarksReadyMs),
           visualWorldReadyMs: Math.round(tamarindMetrics.visualWorldReadyMs || 0),
+          visualReadyMs: Math.round(tamarindMetrics.visualReadyMs || 0),
           inhabitedReadyMs: Math.round(tamarindMetrics.inhabitedReadyMs),
           worldCompleteMs: Math.round(tamarindMetrics.worldCompleteMs),
           navigationTtfbMs: Math.round(tamarindMetrics.navigationTtfbMs || 0),
@@ -1236,6 +1309,10 @@ async function initializeScene() {
           longTaskTotalMs: Math.round(tamarindMetrics.longTaskTotalMs),
           longTaskDetails: tamarindMetrics.longTaskDetails,
           operations: measuredOperations,
+          batches: tamarindMetrics.batches || [],
+          rendererStats: tamarindMetrics.rendererStats,
+          shaderProgramTimeline: tamarindMetrics.shaderProgramTimeline || [],
+          shaderWarmups: tamarindMetrics.shaderWarmups || [],
           initialJsResources: tamarindMetrics.initialJsResources,
           landmarkAuditStage: tamarindMetrics.landmarkAuditStage ?? null,
           duplicateRequests: tamarindMetrics.duplicateRequests,

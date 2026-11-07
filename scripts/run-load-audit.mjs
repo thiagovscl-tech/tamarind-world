@@ -6,6 +6,8 @@ import process from 'node:process';
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const chromePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const port = Number(process.env.TAMARIND_AUDIT_PORT || 4174);
+const coldRunCount = Number(process.env.TAMARIND_COLD_RUNS || 3);
+const warmRunCount = Number(process.env.TAMARIND_WARM_RUNS || 3);
 const runRoot = path.join(repoRoot, '.audit-output', new Date().toISOString().replaceAll(':', '-'));
 await mkdir(runRoot, { recursive: true });
 
@@ -33,8 +35,6 @@ async function openBrowser(profilePath) {
     '--disable-background-networking',
     '--disable-component-update',
     '--disable-features=Translate,MediaRouter',
-    '--use-angle=swiftshader',
-    '--enable-unsafe-swiftshader',
     `--user-data-dir=${profilePath}`,
     '--remote-debugging-port=0',
     'about:blank',
@@ -106,7 +106,7 @@ async function runAudit({ name, profilePath, landmarkStage = null }) {
     if (landmarkStage !== null) params.set('landmarkStage', String(landmarkStage));
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/?${params}` }, sessionId);
 
-    const deadline = Date.now() + 70000;
+    const deadline = Date.now() + 120000;
     let payload = null;
     while (Date.now() < deadline) {
       const evaluation = await cdp.send('Runtime.evaluate', {
@@ -126,12 +126,17 @@ async function runAudit({ name, profilePath, landmarkStage = null }) {
       stage: landmarkStage === null ? 'full' : `L${landmarkStage}`,
       firstRenderMs: diagnostic.firstRenderMs,
       landmarksReadyMs: diagnostic.landmarksReadyMs,
+      visualReadyMs: diagnostic.visualReadyMs,
+      inhabitedReadyMs: diagnostic.inhabitedReadyMs,
       worldCompleteMs: diagnostic.worldCompleteMs,
       longTaskCount: diagnostic.longTaskCount,
       longTaskTotalMs: diagnostic.longTaskTotalMs,
       maxLongTaskMs,
       glbRequestCount: diagnostic.glbRequestCount,
       totalTransferBytes: diagnostic.totalTransferBytes,
+      drawCalls: diagnostic.rendererStats?.drawCalls || 0,
+      triangles: diagnostic.rendererStats?.triangles || 0,
+      loadingFps: Math.round(diagnostic.rendererStats?.loadingFps || 0),
       diagnostic,
     };
   } finally {
@@ -156,30 +161,44 @@ const server = spawn(process.execPath, [viteEntry, 'preview', '--host', '127.0.0
 try {
   await waitForServer();
   const runs = [];
-  for (let index = 1; index <= 3; index += 1) {
-    runs.push(await runAudit({
+  const persistResults = async () => {
+    await writeFile(path.join(runRoot, 'results.json'), JSON.stringify(runs, null, 2));
+  };
+  for (let index = 1; index <= coldRunCount; index += 1) {
+    const run = await runAudit({
       name: `cold-${index}`,
       profilePath: path.join(runRoot, `profile-cold-${index}`),
-    }));
+    });
+    runs.push(run);
+    console.log(JSON.stringify({ name: run.name, firstRenderMs: run.firstRenderMs, visualReadyMs: run.visualReadyMs, worldCompleteMs: run.worldCompleteMs, maxLongTaskMs: run.maxLongTaskMs }));
+    await persistResults();
   }
 
-  const warmProfile = path.join(runRoot, 'profile-warm');
-  await runAudit({ name: 'warm-prime', profilePath: warmProfile });
-  for (let index = 1; index <= 3; index += 1) {
-    runs.push(await runAudit({ name: `warm-${index}`, profilePath: warmProfile }));
+  if (warmRunCount > 0) {
+    const warmProfile = path.join(runRoot, 'profile-warm');
+    await runAudit({ name: 'warm-prime', profilePath: warmProfile });
+    for (let index = 1; index <= warmRunCount; index += 1) {
+      const run = await runAudit({ name: `warm-${index}`, profilePath: warmProfile });
+      runs.push(run);
+      console.log(JSON.stringify({ name: run.name, firstRenderMs: run.firstRenderMs, visualReadyMs: run.visualReadyMs, worldCompleteMs: run.worldCompleteMs, maxLongTaskMs: run.maxLongTaskMs }));
+      await persistResults();
+    }
   }
 
-  for (let landmarkStage = 0; landmarkStage <= 3; landmarkStage += 1) {
-    runs.push(await runAudit({
-      name: `stage-L${landmarkStage}`,
-      profilePath: path.join(runRoot, `profile-stage-L${landmarkStage}`),
-      landmarkStage,
-    }));
+  if (process.env.TAMARIND_SKIP_LANDMARK_STAGES !== '1') {
+    for (let landmarkStage = 0; landmarkStage <= 3; landmarkStage += 1) {
+      runs.push(await runAudit({
+        name: `stage-L${landmarkStage}`,
+        profilePath: path.join(runRoot, `profile-stage-L${landmarkStage}`),
+        landmarkStage,
+      }));
+      await persistResults();
+    }
   }
 
   console.table(runs.map(({ diagnostic, ...summary }) => summary));
   const resultPath = path.join(runRoot, 'results.json');
-  await writeFile(resultPath, JSON.stringify(runs, null, 2));
+  await persistResults();
   console.log(`RESULTS_JSON=${resultPath}`);
 } finally {
   server.kill();
