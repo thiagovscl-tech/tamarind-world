@@ -242,13 +242,13 @@ const AI_VIDEO_CATEGORIES = {
   mundosImaginados: {
     label: 'Memórias Imaginadas',
     videos: [
+      { id: 'reels-thiago-vascon', title: 'REELS', file: 'reelsthiagovascon.web.mp4', poster: 'reelsthiagovascon.webp', duration: '00:17' },
       { id: 'bikefilme', title: 'BIKE FILME', file: 'BIKEFILME.web.mp4', poster: 'BIKEFILME.webp', duration: '00:30' },
-      { id: 'new-balance-boneco', title: 'NEW BALANCE BONECO', file: 'NEWBALANCEBONECO.web.mp4', poster: 'NEWBALANCEBONECO.webp', duration: '00:15' },
+      { id: 'new-balance-boneco', title: 'NEW BALANCE', file: 'NEWBALANCEBONECO.web.mp4', poster: 'NEWBALANCEBONECO.webp', duration: '00:15' },
       { id: 'ny', title: 'NY', file: 'NY.web.mp4', poster: 'NY.webp', duration: '00:12' },
-      { id: 'picole-tamarind', title: 'Picolé Tamarind', file: 'picole_tamarind.web.mp4', poster: 'picole_tamarind.webp', duration: '00:12' },
-      { id: 'primeiro', title: 'Primeiro', file: 'primeiro.web.mp4', poster: 'primeiro.webp', duration: '00:07' },
-      { id: 'reels-thiago-vascon', title: 'Reels Thiago Vascon', file: 'reelsthiagovascon.web.mp4', poster: 'reelsthiagovascon.webp', duration: '00:17' },
-      { id: 'sitio-do-pi', title: 'Sítio do Pi', file: 'sitiodopi.web.mp4', poster: 'sitiodopi.webp', duration: '00:20' },
+      { id: 'picole-tamarind', title: 'VERÃO', file: 'picole_tamarind.web.mp4', poster: 'picole_tamarind.webp', duration: '00:12' },
+      { id: 'primeiro', title: 'FORMULA 1 COCKPIT', file: 'primeiro.web.mp4', poster: 'primeiro.webp', duration: '00:07' },
+      { id: 'sitio-do-pi', title: 'FORA DO SÍTIO', file: 'sitiodopi.web.mp4', poster: 'sitiodopi.webp', duration: '00:20' },
     ],
   },
   memoriasSinteticas: {
@@ -268,15 +268,14 @@ const ARCHITECTURE_VIDEO_CATEGORY = {
   label: '3D / Arquitetura',
   mediaLabel: 'Vídeo 3D',
   videos: [
-    { id: 'animais-gelados', title: 'Animais Gelados', file: 'Animais gelados.mp4', duration: '00:17' },
-    { id: 'exposicao-macacos-de-gelo', title: 'Exposição - Macacos de Gelo', file: 'Exposição - Macacos de gelo.mp4', duration: '00:13' },
-    { id: 'fornigueiro', title: 'Fornigueiro', file: 'Fornigueiro.mp4', duration: '00:25' },
-    { id: 'marimbondos', title: 'Marimbondos', file: 'Marimbondos.mp4', duration: '00:13' },
-    { id: 'por-dentro-da-colmeia', title: 'Por Dentro da Colmeia', file: 'Por dentro da Colmeia.mp4', duration: '00:17' },
+    { id: 'animais-gelados', title: 'Animais Gelados', file: 'Animais gelados.mp4', posterUrl: '/projects/videos-3D/posters/animais-gelados.webp', duration: '00:17' },
+    { id: 'exposicao-macacos-de-gelo', title: 'Exposição - Macacos de Gelo', file: 'Exposição - Macacos de gelo.mp4', posterUrl: '/projects/videos-3D/posters/exposicao-macacos-de-gelo.webp', duration: '00:13' },
+    { id: 'fornigueiro', title: 'Fornigueiro', file: 'Fornigueiro.mp4', posterUrl: '/projects/videos-3D/posters/fornigueiro.webp', duration: '00:25' },
+    { id: 'marimbondos', title: 'Marimbondos', file: 'Marimbondos.mp4', posterUrl: '/projects/videos-3D/posters/marimbondos.webp', duration: '00:13' },
+    { id: 'por-dentro-da-colmeia', title: 'Por Dentro da Colmeia', file: 'Por dentro da Colmeia.mp4', posterUrl: '/projects/videos-3D/posters/por-dentro-da-colmeia.webp', duration: '00:17' },
   ].map((video) => ({
     ...video,
     basePath: '/projects/videos-3D',
-    posterUrl: '/artwork/ui/icone-3d-arquitetura.runtime.webp?v=de1c05a93d3c',
   })),
 };
 
