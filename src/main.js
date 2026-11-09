@@ -1372,16 +1372,6 @@ async function initializeScene() {
           document.head.appendChild(diagnosticNode);
         }
         diagnosticNode.textContent = JSON.stringify(diagnostic);
-        document.title = [
-          'Tamarind Perf',
-          `first=${Math.round(tamarindMetrics.firstRenderMs)}ms`,
-          `landmarks=${Math.round(tamarindMetrics.landmarksReadyMs)}ms`,
-          `visual=${Math.round(tamarindMetrics.visualWorldReadyMs || 0)}ms`,
-          `world=${Math.round(tamarindMetrics.worldCompleteMs)}ms`,
-          `glb=${tamarindMetrics.glbRequestCount}`,
-          `long=${tamarindMetrics.longTaskCount}`,
-          `stage=${tamarindMetrics.landmarkAuditStage ?? 'full'}`,
-        ].join(' | ');
         window.history.replaceState(
           null,
           '',
