@@ -92,6 +92,15 @@ const navigationHint = document.querySelector('.navigation-hint');
 const topNavigation = document.querySelector('.top-navigation');
 const mobileMenuToggle = document.querySelector('.mobile-menu-toggle');
 const dayNightToggle = document.querySelector('#day-night-toggle');
+const projectsSection = document.querySelector('.projects-section');
+const projectsCollections = document.querySelector('.projects-collections');
+const projectsGallery = document.querySelector('.projects-gallery');
+const projectsGalleryGrid = document.querySelector('.projects-gallery__grid');
+const projectsGalleryBack = document.querySelector('.projects-gallery__back');
+const projectsPlayer = document.querySelector('.projects-player');
+const projectsPlayerFrame = document.querySelector('.projects-player__frame');
+const projectsPlayerTitle = document.querySelector('#projects-player-title');
+const projectsPlayerClose = document.querySelector('.projects-player__close');
 const rendererStartedAt = performance.now();
 const renderer = createRenderer(container);
 tamarindMetrics.rendererCreatedMs = performance.now();
@@ -264,6 +273,19 @@ const AI_VIDEO_CATEGORIES = {
   oraculo: { label: 'Oráculo', videos: [] },
 };
 
+const PROJECT_COLLECTIONS = {
+  memoriasReais: {
+    title: 'MEMÓRIAS REAIS',
+    subtitle: 'O passado revisitado.',
+    videos: AI_VIDEO_CATEGORIES.memoriasSinteticas.videos,
+  },
+  memoriasImaginadas: {
+    title: 'MEMÓRIAS IMAGINADAS',
+    subtitle: 'O que nunca aconteceu, mas poderia.',
+    videos: AI_VIDEO_CATEGORIES.mundosImaginados.videos,
+  },
+};
+
 const ARCHITECTURE_VIDEO_CATEGORY = {
   label: '3D / Arquitetura',
   mediaLabel: 'Vídeo 3D',
@@ -292,6 +314,141 @@ function getAiPosterUrl(video) {
   if (video.posterUrl) return video.posterUrl;
   return `/projects/videos-ai/posters/${encodeURIComponent(video.poster)}`;
 }
+
+let activeProjectVideo = null;
+
+function closeProjectsPlayer() {
+  if (activeProjectVideo) {
+    activeProjectVideo.pause();
+    activeProjectVideo.removeAttribute('src');
+    activeProjectVideo.load();
+    activeProjectVideo = null;
+  }
+  projectsPlayerFrame?.replaceChildren();
+  if (projectsPlayer) projectsPlayer.hidden = true;
+}
+
+function openProjectsPlayer(video) {
+  if (!projectsPlayer || !projectsPlayerFrame || !projectsPlayerTitle) return;
+  closeProjectsPlayer();
+  const player = document.createElement('video');
+  player.controls = true;
+  player.playsInline = true;
+  player.preload = 'metadata';
+  player.poster = getAiPosterUrl(video);
+  player.src = getAiVideoUrl(video);
+  projectsPlayerFrame.appendChild(player);
+  projectsPlayerTitle.textContent = video.title;
+  projectsPlayer.hidden = false;
+  activeProjectVideo = player;
+  player.play().catch(() => {});
+  projectsPlayerClose?.focus({ preventScroll: true });
+}
+
+function createProjectsVideoCard(video) {
+  const card = document.createElement('button');
+  card.className = 'projects-video-card';
+  card.type = 'button';
+  card.setAttribute('aria-label', `Reproduzir ${video.title}`);
+
+  const media = document.createElement('span');
+  media.className = 'projects-video-card__media';
+  const image = document.createElement('img');
+  image.src = getAiPosterUrl(video);
+  image.alt = '';
+  image.width = 640;
+  image.height = 360;
+  image.loading = 'lazy';
+  image.decoding = 'async';
+  const play = document.createElement('span');
+  play.className = 'projects-video-card__play';
+  play.setAttribute('aria-hidden', 'true');
+  play.textContent = '▶';
+  const duration = document.createElement('span');
+  duration.className = 'projects-video-card__duration';
+  duration.textContent = video.duration;
+  media.append(image, play, duration);
+
+  const copy = document.createElement('span');
+  copy.className = 'projects-video-card__copy';
+  const title = document.createElement('strong');
+  title.textContent = video.title;
+  const action = document.createElement('span');
+  action.setAttribute('aria-hidden', 'true');
+  action.textContent = '↗';
+  copy.append(title, action);
+  card.append(media, copy);
+  card.addEventListener('click', () => openProjectsPlayer(video));
+  return card;
+}
+
+function showProjectsGallery(collectionKey) {
+  const collection = PROJECT_COLLECTIONS[collectionKey];
+  if (!collection || !projectsCollections || !projectsGallery || !projectsGalleryGrid) return;
+  closeProjectsPlayer();
+  projectsCollections.hidden = true;
+  projectsGallery.hidden = false;
+  projectsGallery.querySelector('h3').textContent = collection.title;
+  projectsGallery.querySelector('.projects-gallery__header p').textContent = collection.subtitle;
+  projectsGallery.querySelector('.projects-gallery__count').textContent = `${collection.videos.length} vídeos`;
+  projectsGalleryGrid.replaceChildren(...collection.videos.map(createProjectsVideoCard));
+  projectsGalleryBack?.focus({ preventScroll: true });
+}
+
+function showProjectCollections() {
+  closeProjectsPlayer();
+  if (projectsGallery) projectsGallery.hidden = true;
+  if (projectsCollections) projectsCollections.hidden = false;
+}
+
+function initializeProjectsSection() {
+  if (!projectsCollections) return;
+  const cards = Object.entries(PROJECT_COLLECTIONS).map(([key, collection]) => {
+    const button = document.createElement('button');
+    button.className = 'projects-collection-card';
+    button.type = 'button';
+    button.setAttribute('aria-label', `Abrir coleção ${collection.title}`);
+    const cover = document.createElement('span');
+    cover.className = 'projects-collection-card__cover';
+    const image = document.createElement('img');
+    image.src = getAiPosterUrl(collection.videos[0]);
+    image.alt = '';
+    image.width = 960;
+    image.height = 540;
+    image.loading = 'lazy';
+    image.decoding = 'async';
+    cover.appendChild(image);
+    const copy = document.createElement('span');
+    copy.className = 'projects-collection-card__copy';
+    const title = document.createElement('strong');
+    title.textContent = collection.title;
+    const subtitle = document.createElement('span');
+    subtitle.textContent = collection.subtitle;
+    const action = document.createElement('span');
+    action.className = 'projects-collection-card__action';
+    action.textContent = 'Explorar coleção →';
+    copy.append(title, subtitle, action);
+    button.append(cover, copy);
+    button.addEventListener('click', () => showProjectsGallery(key));
+    return button;
+  });
+  projectsCollections.replaceChildren(...cards);
+  projectsGalleryBack?.addEventListener('click', showProjectCollections);
+  projectsPlayerClose?.addEventListener('click', closeProjectsPlayer);
+  projectsPlayer?.addEventListener('click', (event) => {
+    if (event.target === projectsPlayer) closeProjectsPlayer();
+  });
+  projectsSection?.addEventListener('pointerdown', (event) => event.stopPropagation());
+  projectsSection?.addEventListener('pointerup', (event) => event.stopPropagation());
+  window.addEventListener('hashchange', () => {
+    if (window.location.hash !== '#projetos') {
+      closeProjectsPlayer();
+      showProjectCollections();
+    }
+  });
+}
+
+initializeProjectsSection();
 
 function releaseAiVideo() {
   if (!activeAiVideoElement) return;
